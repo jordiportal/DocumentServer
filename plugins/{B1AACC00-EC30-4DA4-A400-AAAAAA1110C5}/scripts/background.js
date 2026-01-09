@@ -1,5 +1,5 @@
 /**
- * BIW Data Connector - Background Service v3.0.0
+ * BIW Data Connector - Background Service v3.1.0
  * 
  * Plugin de fondo que registra la pestaña BIW en el ribbon
  * y gestiona las ventanas modales y el panel de filtros.
@@ -8,7 +8,7 @@
 (function(window, undefined) {
     'use strict';
 
-    const VERSION = "3.0.0";
+    const VERSION = "3.7.0";
     const PLUGIN_NAME = "BIW";
     
     // Referencias a ventanas activas
@@ -151,16 +151,38 @@
         if (!window.Asc.PluginWindow) return;
         
         closeWindow(importWindow);
-        importWindow = createWindow({
+        
+        importWindow = new window.Asc.PluginWindow();
+        
+        // Escuchar datos de la ventana de importación
+        importWindow.attachEvent("onInsertData", function(data) {
+            console.log(`[${PLUGIN_NAME}] Datos recibidos:`, data);
+            if (data && data.rows) {
+                insertDataToSheet(data.rows, function(result) {
+                    // Notificar a la ventana que la inserción terminó
+                    if (importWindow) {
+                        importWindow.command("onInsertComplete", result);
+                    }
+                });
+            }
+        });
+        
+        importWindow.attachEvent("onClose", function() {
+            importWindow = null;
+        });
+        
+        importWindow.show({
             url: 'window.html',
             description: 'Importar Datos BIW',
+            isVisual: true,
             buttons: [
                 { text: 'Importar', primary: true },
                 { text: 'Cancelar', primary: false }
             ],
             isModal: true,
-            size: [600, 500]
-        }, function() { importWindow = null; });
+            EditorsSupport: ["word", "cell", "slide", "pdf"],
+            size: [600, 550]
+        });
     }
 
     /**
@@ -198,13 +220,18 @@
         
         filtersPanel = new window.Asc.PluginWindow();
         
+        // Escuchar datos del panel de filtros para insertar
+        filtersPanel.attachEvent("onInsertData", function(data) {
+            console.log(`[${PLUGIN_NAME}] Datos desde filtros:`, data);
+            if (data && data.rows) {
+                insertDataToSheet(data.rows);
+            }
+        });
+        
         filtersPanel.attachEvent("onDockedChanged", function(newType) {
-            // Guardar preferencia del usuario
             try {
                 localStorage.setItem("biw_filters_placement", newType);
             } catch(e) {}
-            
-            // Notificar al editor del cambio de estado
             window.Asc.plugin.executeMethod("OnWindowDockChangedCallback", [filtersPanel.id]);
         });
         
@@ -230,47 +257,90 @@
     // =========================================================================
 
     /**
-     * Actualiza los datos en la celda activa (placeholder)
+     * Actualiza los datos en la celda activa
      */
     function refreshData() {
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
             var oCell = oSheet.GetActiveCell();
             oCell.SetValue("Actualizado: " + new Date().toLocaleTimeString());
-            return { success: true };
-        }, false, true);
+        }, true, true);
     }
 
     /**
-     * Inserta datos en la hoja de cálculo
+     * Inserta datos en la hoja de cálculo con formato
+     * Limpia datos anteriores antes de insertar
+     * @param {Array} rows - Filas de datos a insertar
+     * @param {Function} callback - Callback después de insertar
      */
-    function insertDataToSheet(rows) {
-        if (!rows || rows.length === 0) return;
+    function insertDataToSheet(rows, callback) {
+        if (!rows || rows.length === 0) {
+            console.log(`[${PLUGIN_NAME}] Sin datos para insertar`);
+            if (callback) callback({ error: "Sin datos" });
+            return;
+        }
+        
+        console.log(`[${PLUGIN_NAME}] Insertando ${rows.length} filas...`);
+        
+        // Guardar datos en scope para el comando
+        window.Asc.scope.insertRows = rows;
         
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
-            var data = Asc.scope.data;
+            var data = Asc.scope.insertRows;
             
-            if (!data || data.length === 0) return { error: "Sin datos" };
-            
-            var headers = Object.keys(data[0]);
-            
-            // Escribir headers
-            for (var c = 0; c < headers.length; c++) {
-                var cell = oSheet.GetRangeByNumber(0, c);
-                cell.SetValue(headers[c]);
-                cell.SetBold(true);
+            if (!data || data.length === 0) {
+                return { error: "Sin datos en scope" };
             }
             
-            // Escribir datos
+            var headers = Object.keys(data[0]);
+            var numRows = data.length + 1; // +1 para headers
+            var numCols = headers.length;
+            
+            // LIMPIAR área anterior (hasta 200 filas x 100 columnas)
+            var clearRange = oSheet.GetRange("A1:CV200");
+            clearRange.SetValue("");
+            clearRange.SetFillColor(Api.CreateColorFromRGB(255, 255, 255));
+            clearRange.SetFontColor(Api.CreateColorFromRGB(0, 0, 0));
+            clearRange.SetBold(false);
+            
+            // Colores
+            var headerBg = Api.CreateColorFromRGB(30, 58, 95);
+            var headerFont = Api.CreateColorFromRGB(255, 255, 255);
+            var altRowBg = Api.CreateColorFromRGB(245, 248, 252);
+            
+            // Escribir headers con formato
+            for (var c = 0; c < headers.length; c++) {
+                var headerCell = oSheet.GetRangeByNumber(0, c);
+                headerCell.SetValue(headers[c]);
+                headerCell.SetBold(true);
+                headerCell.SetFillColor(headerBg);
+                headerCell.SetFontColor(headerFont);
+            }
+            
+            // Escribir datos con filas alternadas
             for (var r = 0; r < data.length; r++) {
                 for (var c = 0; c < headers.length; c++) {
-                    oSheet.GetRangeByNumber(r + 1, c).SetValue(data[r][headers[c]]);
+                    var cell = oSheet.GetRangeByNumber(r + 1, c);
+                    var value = data[r][headers[c]];
+                    cell.SetValue(value !== undefined && value !== null ? value : "");
+                    
+                    // Filas alternadas
+                    if (r % 2 === 1) {
+                        cell.SetFillColor(altRowBg);
+                    }
                 }
             }
             
-            return { success: true, count: data.length };
-        }, false, true, null, { data: rows });
+            // Seleccionar celda A1
+            oSheet.GetRange("A1").Select();
+            
+            return { success: true, count: data.length, columns: headers.length };
+            
+        }, false, true, function(result) {
+            console.log(`[${PLUGIN_NAME}] Inserción completada:`, result);
+            if (callback) callback(result || { success: true });
+        });
     }
 
     // =========================================================================
@@ -338,13 +408,13 @@
     window.Asc.plugin.button = function(id, windowId) {
         if (!windowId) return;
         
-        // Importar
+        // Importar - NO cerrar aquí, dejar que la ventana maneje la inserción
         if (importWindow && windowId === importWindow.id) {
-            if (id === 0) {
-                // TODO: Procesar importación antes de cerrar
+            if (id === 1) { // Solo cerrar en "Cancelar"
+                importWindow.close();
+                importWindow = null;
             }
-            importWindow.close();
-            importWindow = null;
+            // El botón "Importar" (id=0) se maneja desde window.html
             return;
         }
         
@@ -385,10 +455,6 @@
                 } else if (msg.eventName === 'onContextMenuClick' && msg.eventData === "biw-ctx-import") {
                     openImportWindow();
                 }
-            }
-            // Datos desde ventana de importación
-            else if (msg.type === 'insertData' && msg.data?.rows) {
-                insertDataToSheet(msg.data.rows);
             }
         } catch(e) {}
     });

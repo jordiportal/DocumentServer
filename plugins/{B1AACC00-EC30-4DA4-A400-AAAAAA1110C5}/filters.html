@@ -3,338 +3,628 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editar Filtros BIW</title>
-    <!-- Scripts locales de ONLYOFFICE para funcionalidad completa (incluido PIN/UNPIN) -->
+    <title>Configurar Query BIW</title>
     <script type="text/javascript" src="./../v1/plugins.js"></script>
     <script type="text/javascript" src="./../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="./../v1/plugins.css">
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(180deg, #1a2a3a 0%, #243447 100%);
+            color: #e0e6ed;
             font-size: 12px;
-            background: var(--bg-color, #f5f5f5);
-            color: var(--text-color, #333);
-            padding: 12px;
-            min-height: 100%;
+            height: 100vh;
+            overflow: hidden;
         }
-        
-        /* Tema oscuro */
-        body.dark-theme {
-            --bg-color: #1e1e1e;
-            --text-color: #e0e0e0;
-            --border-color: #404040;
-            --input-bg: #2d2d2d;
-            --hover-bg: #3a3a3a;
-            --accent-color: #4a9eff;
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 10px;
         }
-        
-        /* Tema claro */
-        body.light-theme {
-            --bg-color: #ffffff;
-            --text-color: #333333;
-            --border-color: #e0e0e0;
-            --input-bg: #ffffff;
-            --hover-bg: #f0f0f0;
-            --accent-color: #0066cc;
-        }
-        
         .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--border-color, #e0e0e0);
+            text-align: center;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 10px;
         }
+        .header h1 { font-size: 14px; margin-bottom: 2px; color: #4fc3f7; }
+        .header .subtitle { font-size: 10px; opacity: 0.6; }
         
-        .header h1 {
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .header h1::before {
-            content: "🔍";
-        }
-        
-        .pin-status {
-            font-size: 10px;
-            padding: 3px 8px;
-            border-radius: 10px;
-            background: var(--accent-color, #0066cc);
-            color: white;
-        }
-        
-        .section {
-            margin-bottom: 16px;
-        }
-        
+        .section { margin-bottom: 8px; }
         .section-title {
             font-size: 11px;
             font-weight: 600;
-            text-transform: uppercase;
-            color: var(--text-color, #666);
-            opacity: 0.7;
-            margin-bottom: 8px;
-        }
-        
-        .filter-item {
-            background: var(--input-bg, #fff);
-            border: 1px solid var(--border-color, #e0e0e0);
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 8px;
-        }
-        
-        .filter-item:hover {
-            background: var(--hover-bg, #f0f0f0);
-        }
-        
-        .filter-header {
+            color: #4fc3f7;
+            margin-bottom: 4px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
+            gap: 5px;
+        }
+        .section-title .count {
+            background: rgba(79,195,247,0.2);
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-size: 9px;
         }
         
-        .filter-name {
-            font-weight: 500;
-            font-size: 12px;
+        select, input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            background: rgba(0,0,0,0.3);
+            color: #e0e6ed;
+            font-size: 11px;
         }
+        select:focus, input:focus { outline: none; border-color: #4fc3f7; }
+        select option { background: #243447; }
         
-        .filter-type {
+        .dim-zone {
+            min-height: 40px;
+            max-height: 65px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 4px;
+            padding: 4px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            align-content: flex-start;
+        }
+        .dim-zone.available { max-height: 80px; }
+        .dim-zone-empty {
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.3);
             font-size: 10px;
-            color: var(--accent-color, #0066cc);
-            background: rgba(74, 158, 255, 0.1);
-            padding: 2px 6px;
+            padding: 8px;
+        }
+        
+        .dim-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            padding: 2px 5px;
+            background: rgba(79,195,247,0.2);
+            border: 1px solid rgba(79,195,247,0.4);
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            user-select: none;
+            transition: all 0.15s;
+        }
+        .dim-chip:hover { background: rgba(79,195,247,0.35); }
+        .dim-chip.selected {
+            background: rgba(76,175,80,0.3);
+            border-color: #4caf50;
+        }
+        .dim-chip .arrow {
+            font-size: 8px;
+            opacity: 0.6;
+            margin-left: 2px;
+        }
+        
+        .move-btns {
+            display: flex;
+            gap: 3px;
+            margin-top: 4px;
+            margin-bottom: 4px;
+        }
+        .move-btn {
+            flex: 1;
+            padding: 4px;
+            font-size: 9px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 3px;
+            color: #e0e6ed;
+            cursor: pointer;
+        }
+        .move-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
+        .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .metrics-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            max-height: 85px;
+            overflow-y: auto;
+            padding: 4px;
+            background: rgba(0,0,0,0.2);
             border-radius: 4px;
         }
+        .metric-chip {
+            padding: 2px 5px;
+            font-size: 9px;
+            background: rgba(100,100,100,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 3px;
+            cursor: pointer;
+            white-space: nowrap;
+            max-width: 105px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .metric-chip.selected {
+            background: rgba(76,175,80,0.35);
+            border-color: #4caf50;
+        }
+        .metric-chip:hover { border-color: rgba(255,255,255,0.3); }
         
-        .filter-value {
+        .btn-row {
             display: flex;
             gap: 6px;
-            margin-top: 6px;
+            margin-top: auto;
+            padding-top: 8px;
         }
-        
-        .filter-value input,
-        .filter-value select {
-            flex: 1;
-            padding: 6px 8px;
-            border: 1px solid var(--border-color, #ddd);
-            border-radius: 4px;
-            font-size: 11px;
-            background: var(--input-bg, #fff);
-            color: var(--text-color, #333);
-        }
-        
-        .filter-value input:focus,
-        .filter-value select:focus {
-            outline: none;
-            border-color: var(--accent-color, #0066cc);
-        }
-        
         .btn {
-            padding: 8px 16px;
+            flex: 1;
+            padding: 8px;
             border: none;
             border-radius: 4px;
             font-size: 11px;
             cursor: pointer;
             transition: all 0.2s;
         }
-        
         .btn-primary {
-            background: var(--accent-color, #0066cc);
-            color: white;
+            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+            color: #fff;
         }
-        
-        .btn-primary:hover {
-            opacity: 0.9;
-        }
-        
+        .btn-primary:hover { background: linear-gradient(135deg, #29b6f6, #0288d1); }
+        .btn-primary:disabled { background: #546e7a; cursor: not-allowed; }
         .btn-secondary {
-            background: var(--input-bg, #fff);
-            border: 1px solid var(--border-color, #ddd);
-            color: var(--text-color, #333);
+            background: rgba(255,255,255,0.1);
+            color: #e0e6ed;
+            border: 1px solid rgba(255,255,255,0.2);
         }
         
-        .btn-secondary:hover {
-            background: var(--hover-bg, #f0f0f0);
-        }
-        
-        .actions {
+        .quick-actions {
             display: flex;
-            gap: 8px;
-            margin-top: 16px;
-            padding-top: 12px;
-            border-top: 1px solid var(--border-color, #e0e0e0);
+            gap: 3px;
+            margin-bottom: 4px;
         }
-        
-        .actions .btn {
-            flex: 1;
+        .quick-btn {
+            padding: 2px 5px;
+            font-size: 9px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 3px;
+            color: #e0e6ed;
+            cursor: pointer;
         }
+        .quick-btn:hover { background: rgba(255,255,255,0.2); }
         
-        .empty-state {
+        .status {
             text-align: center;
-            padding: 30px 20px;
-            color: var(--text-color, #666);
-            opacity: 0.6;
+            font-size: 10px;
+            opacity: 0.7;
+            padding: 4px;
+            min-height: 18px;
         }
+        .status.error { color: #f44336; opacity: 1; }
+        .status.success { color: #4caf50; opacity: 1; }
         
-        .empty-state::before {
-            content: "📋";
-            display: block;
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-        
-        .add-filter {
+        #loader {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(26,42,58,0.95);
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            padding: 10px;
-            border: 2px dashed var(--border-color, #ddd);
-            border-radius: 6px;
-            cursor: pointer;
-            color: var(--accent-color, #0066cc);
-            transition: all 0.2s;
+            z-index: 100;
         }
-        
-        .add-filter:hover {
-            background: rgba(74, 158, 255, 0.05);
-            border-color: var(--accent-color, #0066cc);
+        #loader.hidden { display: none; }
+        .spinner {
+            width: 24px; height: 24px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: #4fc3f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loader-text { margin-top: 8px; font-size: 11px; }
     </style>
 </head>
-<body class="light-theme">
-    <div class="header">
-        <h1>Editar Filtros</h1>
-        <span class="pin-status" id="pinStatus">Flotante</span>
-    </div>
-    
-    <div class="section">
-        <div class="section-title">Filtros Activos</div>
-        
-        <div class="filter-item">
-            <div class="filter-header">
-                <span class="filter-name">Año Fiscal</span>
-                <span class="filter-type">FISCYEAR</span>
-            </div>
-            <div class="filter-value">
-                <input type="text" value="2024" placeholder="Valor...">
-            </div>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Configurar Query</h1>
+            <div class="subtitle">Selecciona dimensiones y métricas</div>
         </div>
-        
-        <div class="filter-item">
-            <div class="filter-header">
-                <span class="filter-name">Período</span>
-                <span class="filter-type">FISCPER</span>
-            </div>
-            <div class="filter-value">
-                <select>
-                    <option value="001">Enero</option>
-                    <option value="002">Febrero</option>
-                    <option value="003">Marzo</option>
-                    <option value="004">Abril</option>
-                    <option value="005">Mayo</option>
-                    <option value="006">Junio</option>
-                    <option value="007">Julio</option>
-                    <option value="008">Agosto</option>
-                    <option value="009">Septiembre</option>
-                    <option value="010">Octubre</option>
-                    <option value="011">Noviembre</option>
-                    <option value="012" selected>Diciembre</option>
-                </select>
-            </div>
+
+        <div class="section">
+            <div class="section-title">Query BW</div>
+            <select id="querySelect">
+                <option value="">Cargando...</option>
+            </select>
         </div>
-        
-        <div class="filter-item">
-            <div class="filter-header">
-                <span class="filter-name">Sociedad</span>
-                <span class="filter-type">COMP_CODE</span>
-            </div>
-            <div class="filter-value">
-                <input type="text" value="1000" placeholder="Código sociedad...">
-            </div>
+
+        <div class="section">
+            <div class="section-title">📊 Filas <span class="count" id="rowCount">0</span></div>
+            <div class="dim-zone" id="rowsZone"></div>
         </div>
-        
-        <div class="add-filter" onclick="addFilter()">
-            <span>+</span> Añadir Filtro
+
+        <div class="move-btns">
+            <button class="move-btn" id="btnToRows" disabled>↑ A Filas</button>
+            <button class="move-btn" id="btnToCols" disabled>↑ A Columnas</button>
+            <button class="move-btn" id="btnToAvail" disabled>↓ Quitar</button>
+        </div>
+
+        <div class="section">
+            <div class="section-title">📈 Columnas <span class="count" id="colCount">0</span></div>
+            <div class="dim-zone" id="colsZone"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">📁 Disponibles <span class="count" id="availCount">0</span></div>
+            <div class="dim-zone available" id="availZone"></div>
+        </div>
+
+        <div class="section" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+            <div class="section-title">📐 Métricas <span class="count" id="metricCount">0/0</span></div>
+            <div class="quick-actions">
+                <button class="quick-btn" id="btnSelectAll">✓ Todas</button>
+                <button class="quick-btn" id="btnSelectNone">✗ Ninguna</button>
+                <button class="quick-btn" id="btnSelectMain">★ Principales</button>
+            </div>
+            <div class="metrics-container" id="metricsZone" style="flex: 1;"></div>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <div class="btn-row">
+            <button class="btn btn-secondary" id="btnReset">🔄 Reset</button>
+            <button class="btn btn-primary" id="btnApply" disabled>▶️ Ejecutar</button>
         </div>
     </div>
-    
-    <div class="actions">
-        <button class="btn btn-secondary" onclick="resetFilters()">Restablecer</button>
-        <button class="btn btn-primary" onclick="applyFilters()">Aplicar Filtros</button>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div id="loader-text">Conectando...</div>
     </div>
 
     <script>
-        // Estado del panel
-        let isPinned = false;
-        
-        // Inicialización
-        window.Asc.plugin.init = function(data) {
-            console.log('[BIW Filters] Panel inicializado');
-            updatePinStatus();
-        };
-        
-        // Cambio de tema
-        window.Asc.plugin.onThemeChanged = function(theme) {
-            if (theme && theme.type) {
-                document.body.className = theme.type === 'dark' ? 'dark-theme' : 'light-theme';
-            }
-        };
-        
-        // Evento cuando cambia el estado de PIN
-        window.Asc.plugin.attachEvent("onDockedChanged", function(type) {
-            console.log('[BIW Filters] Docked changed:', type);
-            isPinned = (type === 'panel');
-            updatePinStatus();
-        });
-        
-        function updatePinStatus() {
-            const statusEl = document.getElementById('pinStatus');
-            if (isPinned) {
-                statusEl.textContent = '📌 Fijado';
-                statusEl.style.background = '#28a745';
-            } else {
-                statusEl.textContent = 'Flotante';
-                statusEl.style.background = '#6c757d';
-            }
-        }
-        
-        function addFilter() {
-            alert('Funcionalidad de añadir filtro próximamente');
-        }
-        
-        function resetFilters() {
-            console.log('[BIW Filters] Restablecer filtros');
-            // Enviar mensaje al plugin principal
-            window.Asc.plugin.sendToPlugin("resetFilters", {});
-        }
-        
-        function applyFilters() {
-            console.log('[BIW Filters] Aplicar filtros');
+        (function() {
+            'use strict';
             
-            // Recoger valores de filtros
-            const filters = {
-                fiscYear: document.querySelector('.filter-item:nth-child(1) input').value,
-                fiscPer: document.querySelector('.filter-item:nth-child(2) select').value,
-                compCode: document.querySelector('.filter-item:nth-child(3) input').value
+            const SERVER_URL = 'http://localhost:3001';
+            
+            // Estado
+            let currentQuery = null;
+            let dimensions = { rows: [], columns: [], available: [] };
+            let allMetrics = [];
+            let selectedMetrics = new Set();
+            let selectedDim = null; // Dimensión seleccionada para mover
+            let selectedDimZone = null;
+            
+            // DOM
+            const $ = id => document.getElementById(id);
+            const querySelect = $('querySelect');
+            const rowsZone = $('rowsZone');
+            const colsZone = $('colsZone');
+            const availZone = $('availZone');
+            const metricsZone = $('metricsZone');
+            const btnApply = $('btnApply');
+            const btnReset = $('btnReset');
+            const btnToRows = $('btnToRows');
+            const btnToCols = $('btnToCols');
+            const btnToAvail = $('btnToAvail');
+            const status = $('status');
+            const loader = $('loader');
+            const loaderText = $('loader-text');
+            
+            function showLoader(text) {
+                loaderText.textContent = text;
+                loader.classList.remove('hidden');
+            }
+            
+            function hideLoader() {
+                loader.classList.add('hidden');
+            }
+            
+            function setStatus(text, type = '') {
+                status.textContent = text;
+                status.className = 'status ' + type;
+            }
+            
+            async function init() {
+                showLoader('Conectando...');
+                
+                try {
+                    const res = await fetch(SERVER_URL + '/health');
+                    if (!res.ok) throw new Error('Servidor no disponible');
+                    
+                    querySelect.innerHTML = `
+                        <option value="">Selecciona query...</option>
+                        <option value="MKT_CUENTA_RES_CP_OPT_DPCT">Cuenta de Resultados</option>
+                    `;
+                    
+                    hideLoader();
+                    setStatus('Selecciona una query');
+                    
+                } catch (e) {
+                    hideLoader();
+                    setStatus('Error: ' + e.message, 'error');
+                }
+            }
+            
+            async function loadQueryDimensions(queryName) {
+                if (!queryName) {
+                    resetState();
+                    return;
+                }
+                
+                showLoader('Cargando estructura...');
+                currentQuery = queryName;
+                
+                try {
+                    const res = await fetch(SERVER_URL + '/api/bw-query/execute', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ queryName })
+                    });
+                    
+                    if (!res.ok) throw new Error('Error cargando');
+                    const data = await res.json();
+                    
+                    const dims = data.dimensions || {};
+                    dimensions.rows = [...(dims.rows || [])];
+                    dimensions.columns = (dims.columns || []).filter(d => d.type !== '0');
+                    
+                    const usedNames = new Set([
+                        ...dimensions.rows.map(d => d.name),
+                        ...dimensions.columns.map(d => d.name)
+                    ]);
+                    dimensions.available = (dims.all || []).filter(d => 
+                        !usedNames.has(d.name) && d.type !== '0'
+                    );
+                    
+                    allMetrics = (data.colLabels || []).map(col => ({
+                        uid: col.uid,
+                        caption: col.caption
+                    }));
+                    
+                    selectedMetrics = new Set(
+                        allMetrics
+                            .filter(m => !m.caption.startsWith('    '))
+                            .slice(0, 15)
+                            .map(m => m.uid)
+                    );
+                    
+                    selectedDim = null;
+                    selectedDimZone = null;
+                    
+                    renderAll();
+                    hideLoader();
+                    setStatus(`${allMetrics.length} métricas disponibles`);
+                    btnApply.disabled = false;
+                    
+                } catch (e) {
+                    hideLoader();
+                    setStatus('Error: ' + e.message, 'error');
+                }
+            }
+            
+            function renderAll() {
+                renderZone(rowsZone, dimensions.rows, 'rows');
+                renderZone(colsZone, dimensions.columns, 'columns');
+                renderZone(availZone, dimensions.available, 'available');
+                renderMetrics();
+                updateCounts();
+                updateMoveButtons();
+            }
+            
+            function renderZone(zone, items, zoneName) {
+                if (items.length === 0) {
+                    zone.innerHTML = '<div class="dim-zone-empty">Vacío</div>';
+                } else {
+                    zone.innerHTML = items.map(d => {
+                        const isSelected = selectedDim === d.name && selectedDimZone === zoneName;
+                        return `<div class="dim-chip ${isSelected ? 'selected' : ''}" 
+                             data-name="${d.name}" data-zone="${zoneName}"
+                             title="${d.caption} (${d.name})">
+                            ${d.caption}
+                        </div>`;
+                    }).join('');
+                }
+                
+                // Click para seleccionar
+                zone.querySelectorAll('.dim-chip').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        const name = chip.dataset.name;
+                        const z = chip.dataset.zone;
+                        
+                        if (selectedDim === name && selectedDimZone === z) {
+                            // Deseleccionar
+                            selectedDim = null;
+                            selectedDimZone = null;
+                        } else {
+                            selectedDim = name;
+                            selectedDimZone = z;
+                        }
+                        renderAll();
+                    });
+                });
+            }
+            
+            function updateMoveButtons() {
+                const hasSelection = selectedDim !== null;
+                const inRows = selectedDimZone === 'rows';
+                const inCols = selectedDimZone === 'columns';
+                const inAvail = selectedDimZone === 'available';
+                
+                btnToRows.disabled = !hasSelection || inRows;
+                btnToCols.disabled = !hasSelection || inCols;
+                btnToAvail.disabled = !hasSelection || inAvail;
+            }
+            
+            function moveDimension(toZone) {
+                if (!selectedDim || !selectedDimZone) return;
+                
+                const fromArr = dimensions[selectedDimZone];
+                const toArr = dimensions[toZone];
+                
+                const idx = fromArr.findIndex(d => d.name === selectedDim);
+                if (idx === -1) return;
+                
+                const [dim] = fromArr.splice(idx, 1);
+                toArr.push(dim);
+                
+                const zoneName = toZone === 'rows' ? 'Filas' : toZone === 'columns' ? 'Columnas' : 'Disponibles';
+                setStatus(`"${dim.caption}" → ${zoneName}`);
+                
+                selectedDim = null;
+                selectedDimZone = null;
+                renderAll();
+            }
+            
+            function renderMetrics() {
+                if (allMetrics.length === 0) {
+                    metricsZone.innerHTML = '<div class="dim-zone-empty">Selecciona una query</div>';
+                    return;
+                }
+                
+                metricsZone.innerHTML = allMetrics.map(m => `
+                    <div class="metric-chip ${selectedMetrics.has(m.uid) ? 'selected' : ''}" 
+                         data-uid="${m.uid}" title="${m.caption}">
+                        ${m.caption}
+                    </div>
+                `).join('');
+                
+                metricsZone.querySelectorAll('.metric-chip').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        const uid = chip.dataset.uid;
+                        if (selectedMetrics.has(uid)) {
+                            selectedMetrics.delete(uid);
+                        } else {
+                            selectedMetrics.add(uid);
+                        }
+                        chip.classList.toggle('selected');
+                        updateCounts();
+                    });
+                });
+            }
+            
+            function updateCounts() {
+                $('rowCount').textContent = dimensions.rows.length;
+                $('colCount').textContent = dimensions.columns.length;
+                $('availCount').textContent = dimensions.available.length;
+                $('metricCount').textContent = selectedMetrics.size + '/' + allMetrics.length;
+            }
+            
+            function resetState() {
+                dimensions = { rows: [], columns: [], available: [] };
+                allMetrics = [];
+                selectedMetrics = new Set();
+                selectedDim = null;
+                selectedDimZone = null;
+                currentQuery = null;
+                btnApply.disabled = true;
+                renderAll();
+                setStatus('Selecciona una query');
+            }
+            
+            async function applyAndExecute() {
+                if (!currentQuery) return;
+                
+                showLoader('Ejecutando query...');
+                
+                const config = {
+                    queryName: currentQuery,
+                    rowDimensions: dimensions.rows.map(d => d.name),
+                    columnDimensions: dimensions.columns.map(d => d.name),
+                    selectedKeyFigures: Array.from(selectedMetrics),
+                    filters: []
+                };
+                
+                try {
+                    const res = await fetch(SERVER_URL + '/api/bw-query/execute-mdx', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(config)
+                    });
+                    
+                    if (!res.ok) throw new Error('Error ejecutando');
+                    const result = await res.json();
+                    
+                    if (!result.success) throw new Error(result.error || 'Error');
+                    
+                    const rows = result.data || [];
+                    
+                    if (rows.length === 0) {
+                        hideLoader();
+                        setStatus('Sin datos', 'error');
+                        return;
+                    }
+                    
+                    localStorage.setItem('biw_query_config', JSON.stringify(config));
+                    
+                    if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
+                        window.Asc.plugin.sendToPlugin('onInsertData', {
+                            query: { name: currentQuery },
+                            rows: rows
+                        });
+                    }
+                    
+                    hideLoader();
+                    setStatus(`✓ ${rows.length} filas insertadas`, 'success');
+                    
+                } catch (e) {
+                    hideLoader();
+                    setStatus('Error: ' + e.message, 'error');
+                }
+            }
+            
+            // Quick actions
+            $('btnSelectAll').addEventListener('click', () => {
+                selectedMetrics = new Set(allMetrics.map(m => m.uid));
+                renderMetrics();
+                updateCounts();
+            });
+            
+            $('btnSelectNone').addEventListener('click', () => {
+                selectedMetrics = new Set();
+                renderMetrics();
+                updateCounts();
+            });
+            
+            $('btnSelectMain').addEventListener('click', () => {
+                selectedMetrics = new Set(
+                    allMetrics
+                        .filter(m => !m.caption.startsWith('    ') && !m.caption.startsWith('%') && !m.caption.startsWith('('))
+                        .map(m => m.uid)
+                );
+                renderMetrics();
+                updateCounts();
+            });
+            
+            // Move buttons
+            btnToRows.addEventListener('click', () => moveDimension('rows'));
+            btnToCols.addEventListener('click', () => moveDimension('columns'));
+            btnToAvail.addEventListener('click', () => moveDimension('available'));
+            
+            // Events
+            querySelect.addEventListener('change', (e) => loadQueryDimensions(e.target.value));
+            btnReset.addEventListener('click', () => { querySelect.value = ''; resetState(); });
+            btnApply.addEventListener('click', applyAndExecute);
+            
+            // Plugin init
+            window.Asc.plugin.init = function() {
+                init();
             };
             
-            console.log('[BIW Filters] Filtros:', filters);
-            
-            // Enviar al plugin principal
-            window.Asc.plugin.sendToPlugin("applyFilters", filters);
-        }
+            window.Asc.plugin.button = function(id) {};
+            window.Asc.plugin.onTranslate = function() {};
+            window.Asc.plugin.onThemeChanged = function() {};
+        })();
     </script>
 </body>
 </html>

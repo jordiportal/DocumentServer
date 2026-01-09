@@ -4,173 +4,145 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Importar Datos BIW</title>
+    <script type="text/javascript" src="./../v1/plugins.js"></script>
+    <script type="text/javascript" src="./../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="./../v1/plugins.css">
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
             color: #fff;
-            padding: 20px;
+            padding: 15px;
             min-height: 100vh;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .header h1 {
-            font-size: 1.4em;
-            margin-bottom: 5px;
-        }
-        .header .subtitle {
-            font-size: 0.85em;
-            opacity: 0.8;
-        }
+        .header { text-align: center; margin-bottom: 12px; }
+        .header h1 { font-size: 1.2em; margin-bottom: 3px; }
+        .header .subtitle { font-size: 0.75em; opacity: 0.8; }
         .status-bar {
             background: rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 15px;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            font-size: 0.85em;
         }
         .status-indicator {
-            width: 12px;
-            height: 12px;
+            width: 8px; height: 8px;
             border-radius: 50%;
             background: #ffc107;
             animation: pulse 1.5s infinite;
         }
-        .status-indicator.connected {
-            background: #4caf50;
-            animation: none;
-        }
-        .status-indicator.error {
-            background: #f44336;
-            animation: none;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-            opacity: 0.9;
-        }
+        .status-indicator.connected { background: #4caf50; animation: none; }
+        .status-indicator.error { background: #f44336; animation: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; margin-bottom: 3px; font-size: 0.8em; opacity: 0.9; }
         .form-group input, .form-group select {
             width: 100%;
-            padding: 10px 12px;
+            padding: 7px 9px;
             border: 1px solid rgba(255,255,255,0.3);
-            border-radius: 6px;
+            border-radius: 5px;
             background: rgba(255,255,255,0.1);
             color: #fff;
-            font-size: 0.95em;
+            font-size: 0.85em;
         }
-        .form-group input::placeholder {
-            color: rgba(255,255,255,0.5);
-        }
+        .form-group select option { background: #2d5a87; color: #fff; }
         .form-group input:focus, .form-group select:focus {
             outline: none;
             border-color: #4fc3f7;
-            background: rgba(255,255,255,0.15);
-        }
-        .form-group select option {
-            background: #2d5a87;
-            color: #fff;
         }
         .btn {
             width: 100%;
-            padding: 12px;
+            padding: 9px;
             border: none;
-            border-radius: 6px;
-            font-size: 1em;
+            border-radius: 5px;
+            font-size: 0.9em;
             cursor: pointer;
             transition: all 0.2s;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
         .btn-primary {
             background: linear-gradient(135deg, #4fc3f7, #29b6f6);
             color: #fff;
         }
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #29b6f6, #0288d1);
-        }
-        .btn-primary:disabled {
-            background: #546e7a;
-            cursor: not-allowed;
-        }
+        .btn-primary:hover { background: linear-gradient(135deg, #29b6f6, #0288d1); }
+        .btn-primary:disabled { background: #546e7a; cursor: not-allowed; }
         .btn-secondary {
             background: rgba(255,255,255,0.1);
             color: #fff;
             border: 1px solid rgba(255,255,255,0.3);
         }
-        .btn-secondary:hover {
-            background: rgba(255,255,255,0.2);
-        }
         .queries-list {
             background: rgba(0,0,0,0.2);
-            border-radius: 8px;
-            max-height: 200px;
+            border-radius: 6px;
+            max-height: 80px;
             overflow-y: auto;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         .query-item {
-            padding: 12px;
+            padding: 8px 10px;
             border-bottom: 1px solid rgba(255,255,255,0.1);
             cursor: pointer;
             transition: background 0.2s;
         }
-        .query-item:hover {
-            background: rgba(255,255,255,0.1);
+        .query-item:hover { background: rgba(255,255,255,0.1); }
+        .query-item.selected { background: rgba(79, 195, 247, 0.3); }
+        .query-item:last-child { border-bottom: none; }
+        .query-name { font-weight: 500; font-size: 0.85em; }
+        .query-desc { font-size: 0.7em; opacity: 0.7; }
+        .data-preview {
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            max-height: 120px;
+            overflow: auto;
+            margin-bottom: 10px;
+            font-size: 0.7em;
         }
-        .query-item.selected {
-            background: rgba(79, 195, 247, 0.3);
+        .preview-table { width: 100%; border-collapse: collapse; }
+        .preview-table th, .preview-table td {
+            padding: 5px 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: left;
+            white-space: nowrap;
         }
-        .query-item:last-child {
-            border-bottom: none;
-        }
-        .query-name {
-            font-weight: 500;
-            margin-bottom: 3px;
-        }
-        .query-desc {
-            font-size: 0.8em;
-            opacity: 0.7;
-        }
-        .loading {
-            text-align: center;
-            padding: 30px;
-            opacity: 0.7;
-        }
+        .preview-table th { background: rgba(255,255,255,0.1); font-weight: bold; }
+        .loading-text { text-align: center; padding: 15px; opacity: 0.7; font-size: 0.85em; }
         .error-msg {
             background: rgba(244, 67, 54, 0.2);
             border: 1px solid #f44336;
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 15px;
-            font-size: 0.9em;
+            border-radius: 5px;
+            padding: 6px;
+            margin-bottom: 8px;
+            font-size: 0.8em;
         }
-        .footer {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 0.75em;
-            opacity: 0.6;
+        .stats { font-size: 0.7em; opacity: 0.8; margin-bottom: 8px; text-align: center; }
+        .footer { margin-top: 10px; text-align: center; font-size: 0.65em; opacity: 0.5; }
+        #loader-container {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(30, 58, 95, 0.95);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 1000;
         }
+        #loader-container.hidden { display: none; }
+        .loader-spinner {
+            width: 36px; height: 36px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: #4fc3f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        .loader-text { margin-top: 10px; font-size: 0.85em; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>📊 Importar Datos BIW</h1>
-        <div class="subtitle">Conecta y carga datos desde SAP BW</div>
+        <div class="subtitle">SAP BW Query Executor (MDX)</div>
     </div>
 
     <div class="status-bar">
@@ -179,226 +151,237 @@
     </div>
 
     <div class="form-group">
-        <label>Servidor BIW:</label>
-        <input type="text" id="serverUrl" value="http://localhost:3001" placeholder="URL del servidor">
+        <label>Servidor:</label>
+        <input type="text" id="serverUrl" value="http://localhost:3001">
     </div>
 
     <div class="form-group">
-        <label>Queries disponibles:</label>
+        <label>Queries BW disponibles:</label>
         <div class="queries-list" id="queriesList">
-            <div class="loading">⏳ Cargando queries...</div>
+            <div class="loading-text">Cargando...</div>
         </div>
     </div>
 
     <div id="errorContainer"></div>
+    <div class="stats" id="statsContainer"></div>
+
+    <div class="data-preview" id="dataPreview">
+        <div class="loading-text">Selecciona una query</div>
+    </div>
+
+    <button class="btn btn-secondary" id="btnExecute" disabled>
+        ▶️ Ejecutar Query
+    </button>
 
     <button class="btn btn-primary" id="btnInsert" disabled>
-        ⬇️ Insertar en Hoja Activa
-    </button>
-    
-    <button class="btn btn-secondary" id="btnRefresh">
-        🔄 Actualizar Lista
+        ⬇️ Insertar en Hoja
     </button>
 
-    <div class="footer">
-        BIW Data Connector v2.5.0 | Window ID: <span id="windowId">-</span>
+    <div class="footer">BIW Data Connector v3.5.0</div>
+
+    <div id="loader-container" class="hidden">
+        <div class="loader-spinner"></div>
+        <div class="loader-text" id="loaderText">Cargando...</div>
     </div>
 
     <script>
         (function() {
             'use strict';
             
-            console.log('[Window] Inicializando ventana BIW...');
+            // Queries BW disponibles
+            const AVAILABLE_QUERIES = [
+                {
+                    name: 'MKT_CUENTA_RES_CP_OPT_DPCT',
+                    displayName: 'Cuenta de Resultados',
+                    description: 'Márgenes comerciales por versión (Real, Objetivo, Previsión)'
+                }
+            ];
             
-            // Obtener windowID de la URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const windowId = urlParams.get('windowID');
-            document.getElementById('windowId').textContent = windowId || 'N/A';
-            console.log('[Window] Window ID:', windowId);
-            
-            // Estado
             let selectedQuery = null;
-            let queries = [];
+            let currentData = null;
             
-            // Elementos DOM
-            const statusIndicator = document.getElementById('statusIndicator');
-            const statusText = document.getElementById('statusText');
-            const queriesList = document.getElementById('queriesList');
-            const btnInsert = document.getElementById('btnInsert');
-            const btnRefresh = document.getElementById('btnRefresh');
-            const serverUrl = document.getElementById('serverUrl');
-            const errorContainer = document.getElementById('errorContainer');
+            const $ = id => document.getElementById(id);
+            const statusIndicator = $('statusIndicator');
+            const statusText = $('statusText');
+            const queriesList = $('queriesList');
+            const btnExecute = $('btnExecute');
+            const btnInsert = $('btnInsert');
+            const serverUrl = $('serverUrl');
+            const errorContainer = $('errorContainer');
+            const dataPreview = $('dataPreview');
+            const statsContainer = $('statsContainer');
+            const loaderContainer = $('loader-container');
+            const loaderText = $('loaderText');
             
-            // Función para mostrar error
-            function showError(msg) {
-                errorContainer.innerHTML = '<div class="error-msg">❌ ' + msg + '</div>';
-                statusIndicator.className = 'status-indicator error';
-                statusText.textContent = 'Error de conexión';
+            function showLoader(text) {
+                loaderText.textContent = text || 'Cargando...';
+                loaderContainer.classList.remove('hidden');
             }
             
-            // Función para limpiar error
+            function hideLoader() {
+                loaderContainer.classList.add('hidden');
+            }
+            
+            function showError(msg) {
+                errorContainer.innerHTML = '<div class="error-msg">❌ ' + msg + '</div>';
+            }
+            
             function clearError() {
                 errorContainer.innerHTML = '';
             }
             
-            // Función para conectar al servidor
             async function connect() {
                 const url = serverUrl.value.trim();
-                console.log('[Window] Conectando a:', url);
-                
                 statusIndicator.className = 'status-indicator';
                 statusText.textContent = 'Conectando...';
                 clearError();
                 
                 try {
-                    const response = await fetch(url + '/health', {
-                        method: 'GET',
-                        headers: { 'Accept': 'application/json' }
-                    });
+                    const response = await fetch(url + '/api/bw-query/service-info');
+                    if (!response.ok) throw new Error('Servicio no disponible');
                     
-                    if (!response.ok) throw new Error('Server returned ' + response.status);
-                    
-                    const data = await response.json();
-                    console.log('[Window] Servidor OK:', data);
-                    
+                    const info = await response.json();
                     statusIndicator.className = 'status-indicator connected';
-                    statusText.textContent = 'Conectado - ' + (data.services?.total || 0) + ' servicios';
-                    
-                    // Cargar queries
-                    loadQueries();
-                    
-                } catch (error) {
-                    console.error('[Window] Error de conexión:', error);
-                    showError('No se pudo conectar: ' + error.message);
-                    queriesList.innerHTML = '<div class="loading">❌ Sin conexión</div>';
-                }
-            }
-            
-            // Función para cargar queries
-            async function loadQueries() {
-                const url = serverUrl.value.trim();
-                queriesList.innerHTML = '<div class="loading">⏳ Cargando queries...</div>';
-                
-                try {
-                    // Intentar endpoint de BW queries
-                    const response = await fetch(url + '/api/bw-query/queries', {
-                        method: 'GET',
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        queries = data.queries || data || [];
-                        renderQueries();
-                    } else {
-                        // Fallback: mostrar queries de ejemplo
-                        queries = [
-                            { id: 'ZSEGMENT_Q01', name: 'Análisis por Segmento', description: 'Ventas por segmento de mercado' },
-                            { id: 'ZSD_ORDERS', name: 'Órdenes de Venta', description: 'Pedidos de clientes' },
-                            { id: 'ZFI_BALANCE', name: 'Balance Financiero', description: 'Estado financiero consolidado' }
-                        ];
-                        renderQueries();
-                    }
-                } catch (error) {
-                    console.error('[Window] Error cargando queries:', error);
-                    // Mostrar queries de demo
-                    queries = [
-                        { id: 'DEMO_Q1', name: 'Query de Demostración', description: 'Datos de ejemplo' }
-                    ];
+                    statusText.textContent = 'Conectado - ' + info.name;
                     renderQueries();
+                    
+                } catch (error) {
+                    statusIndicator.className = 'status-indicator error';
+                    statusText.textContent = 'Sin conexión';
+                    showError(error.message);
+                    queriesList.innerHTML = '<div class="loading-text">❌ Error</div>';
                 }
             }
             
-            // Función para renderizar queries
             function renderQueries() {
-                if (queries.length === 0) {
-                    queriesList.innerHTML = '<div class="loading">No hay queries disponibles</div>';
-                    return;
-                }
-                
-                queriesList.innerHTML = queries.map((q, idx) => `
+                queriesList.innerHTML = AVAILABLE_QUERIES.map((q, idx) => `
                     <div class="query-item" data-idx="${idx}">
-                        <div class="query-name">📊 ${q.name || q.id}</div>
-                        <div class="query-desc">${q.description || q.id}</div>
+                        <div class="query-name">📊 ${q.displayName}</div>
+                        <div class="query-desc">${q.description}</div>
                     </div>
                 `).join('');
                 
-                // Eventos de click
                 queriesList.querySelectorAll('.query-item').forEach(item => {
                     item.addEventListener('click', function() {
                         queriesList.querySelectorAll('.query-item').forEach(i => i.classList.remove('selected'));
                         this.classList.add('selected');
-                        selectedQuery = queries[parseInt(this.dataset.idx)];
-                        btnInsert.disabled = false;
-                        console.log('[Window] Query seleccionada:', selectedQuery);
+                        selectedQuery = AVAILABLE_QUERIES[parseInt(this.dataset.idx)];
+                        btnExecute.disabled = false;
+                        btnInsert.disabled = true;
+                        currentData = null;
+                        dataPreview.innerHTML = '<div class="loading-text">Click en Ejecutar</div>';
+                        statsContainer.textContent = '';
                     });
                 });
             }
             
-            // Función para insertar datos
-            async function insertData() {
+            async function executeQuery() {
                 if (!selectedQuery) return;
                 
-                console.log('[Window] Insertando query:', selectedQuery);
-                btnInsert.textContent = '⏳ Cargando datos...';
-                btnInsert.disabled = true;
+                const url = serverUrl.value.trim();
+                showLoader('Ejecutando ' + selectedQuery.displayName + '...');
+                clearError();
                 
                 try {
-                    // Enviar mensaje al plugin padre
-                    const message = {
-                        type: 'insertData',
-                        windowId: windowId,
-                        query: selectedQuery,
-                        data: {
-                            // Datos de ejemplo
-                            rows: [
-                                { Segmento: 'Retail', Ventas: 150000, Margen: 22.5 },
-                                { Segmento: 'Wholesale', Ventas: 280000, Margen: 18.3 },
-                                { Segmento: 'Online', Ventas: 95000, Margen: 35.2 }
-                            ]
+                    // Cargar configuración guardada por el panel de filtros
+                    let queryConfig = { queryName: selectedQuery.name };
+                    try {
+                        const savedConfig = localStorage.getItem('biw_query_config');
+                        if (savedConfig) {
+                            const config = JSON.parse(savedConfig);
+                            if (config.queryName === selectedQuery.name) {
+                                queryConfig = config;
+                                console.log('📊 Usando config guardada:', config);
+                            }
                         }
-                    };
+                    } catch(e) {}
                     
-                    // Comunicar con el plugin padre
-                    if (window.parent && window.parent !== window) {
-                        window.parent.postMessage(JSON.stringify(message), '*');
-                        console.log('[Window] Mensaje enviado al padre');
+                    // Usar el endpoint MDX con la configuración
+                    const response = await fetch(url + '/api/bw-query/execute-mdx', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(queryConfig)
+                    });
+                    
+                    if (!response.ok) throw new Error('Error ' + response.status);
+                    
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        throw new Error(result.error || 'Error ejecutando query');
                     }
                     
-                    btnInsert.textContent = '✅ Datos insertados';
-                    setTimeout(() => {
-                        btnInsert.textContent = '⬇️ Insertar en Hoja Activa';
-                        btnInsert.disabled = false;
-                    }, 2000);
+                    const rows = result.data || [];
+                    
+                    if (rows.length === 0) {
+                        dataPreview.innerHTML = '<div class="loading-text">Sin datos</div>';
+                        hideLoader();
+                        return;
+                    }
+                    
+                    currentData = rows;
+                    const headers = Object.keys(rows[0]);
+                    const metadata = result.metadata || {};
+                    
+                    // Preview en tabla
+                    let html = '<table class="preview-table"><thead><tr>';
+                    headers.slice(0, 5).forEach(h => html += '<th>' + h + '</th>');
+                    if (headers.length > 5) html += '<th>...</th>';
+                    html += '</tr></thead><tbody>';
+                    
+                    rows.slice(0, 4).forEach(row => {
+                        html += '<tr>';
+                        headers.slice(0, 5).forEach(h => {
+                            let val = row[h];
+                            if (typeof val === 'number') val = val.toLocaleString('es-ES');
+                            html += '<td>' + (val ?? '-') + '</td>';
+                        });
+                        if (headers.length > 5) html += '<td>...</td>';
+                        html += '</tr>';
+                    });
+                    
+                    if (rows.length > 4) {
+                        html += '<tr><td colspan="' + Math.min(headers.length, 6) + '" style="text-align:center;opacity:0.5">+' + (rows.length - 4) + ' filas</td></tr>';
+                    }
+                    
+                    html += '</tbody></table>';
+                    dataPreview.innerHTML = html;
+                    statsContainer.textContent = `📊 ${rows.length} filas × ${headers.length} columnas`;
+                    btnInsert.disabled = false;
                     
                 } catch (error) {
-                    console.error('[Window] Error insertando:', error);
-                    showError('Error al insertar: ' + error.message);
-                    btnInsert.textContent = '⬇️ Insertar en Hoja Activa';
-                    btnInsert.disabled = false;
+                    showError(error.message);
+                    dataPreview.innerHTML = '<div class="loading-text">Error</div>';
                 }
+                
+                hideLoader();
             }
             
-            // Event listeners
-            btnRefresh.addEventListener('click', connect);
+            function insertData() {
+                if (!currentData || currentData.length === 0) return;
+                
+                showLoader('Insertando...');
+                
+                if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
+                    window.Asc.plugin.sendToPlugin("onInsertData", {
+                        query: selectedQuery,
+                        rows: currentData
+                    });
+                }
+                
+                setTimeout(hideLoader, 500);
+            }
+            
+            window.Asc.plugin.init = function() { connect(); };
+            
+            window.Asc.plugin.button = function(id) {
+                if (id === 0 && currentData) insertData();
+                else if (id === 1 || id === -1) window.Asc.plugin.executeMethod("CloseWindow");
+            };
+            
+            btnExecute.addEventListener('click', executeQuery);
             btnInsert.addEventListener('click', insertData);
             serverUrl.addEventListener('change', connect);
-            
-            // Conectar al inicio
-            setTimeout(connect, 500);
-            
-            // Escuchar mensajes del padre
-            window.addEventListener('message', function(event) {
-                console.log('[Window] Mensaje recibido:', event.data);
-                try {
-                    const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-                    if (msg.type === 'close') {
-                        // Cerrar ventana
-                    }
-                } catch(e) {}
-            });
-            
-            console.log('[Window] Ventana inicializada correctamente');
         })();
     </script>
 </body>
