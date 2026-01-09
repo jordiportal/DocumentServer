@@ -8,7 +8,7 @@
 (function(window, undefined) {
     'use strict';
 
-    const VERSION = "3.7.0";
+    const VERSION = "3.9.6";
     const PLUGIN_NAME = "BIW";
     
     // Referencias a ventanas activas
@@ -45,6 +45,9 @@
     }
 
     function registerToolbar() {
+        // Patrón de iconos con soporte para temas light/dark
+        const iconPattern = (name) => `resources/icons/%theme-type%(light|dark)/${name}.svg`;
+        
         window.Asc.plugin.executeMethod("AddToolbarMenuItem", [{
             guid: window.Asc.plugin.info.guid,
             tabs: [{
@@ -52,46 +55,37 @@
                 text: "BIW",
                 items: [
                     {
-                        id: "biw-import-btn",
+                        id: "biw-import",
                         type: "button",
                         text: "Importar Datos",
                         hint: "Importar datos desde BIW",
-                        icons: "resources/icons/import.svg",
-                        split: true,
-                        items: [
-                            { id: "biw-import", text: "Importar desde Query" },
-                            { id: "biw-import-file", text: "Importar desde Archivo" }
-                        ]
+                        icons: iconPattern("import")
                     },
                     {
                         id: "biw-refresh-btn",
                         type: "button",
                         text: "Actualizar",
                         hint: "Actualiza los datos importados",
-                        icons: "resources/icons/refresh.svg",
+                        icons: iconPattern("refresh"),
+                        split: true,
                         items: [
-                            { id: "biw-refresh", text: "Actualizar Todo" }
+                            { id: "biw-refresh", text: "Actualizar Query Actual" },
+                            { id: "biw-refresh-all", text: "Actualizar Todas" }
                         ]
                     },
                     {
-                        id: "biw-filters-btn",
+                        id: "biw-filters",
                         type: "button",
                         text: "Editar Filtros",
                         hint: "Panel de filtros (se puede fijar al lateral)",
-                        icons: "resources/icons/settings.svg",
-                        items: [
-                            { id: "biw-filters", text: "Abrir Panel de Filtros" }
-                        ]
+                        icons: iconPattern("filter")
                     },
                     {
-                        id: "biw-settings-btn",
+                        id: "biw-settings",
                         type: "button",
                         text: "Configuración",
                         hint: "Configuración del conector BIW",
-                        icons: "resources/icons/settings.svg",
-                        items: [
-                            { id: "biw-settings", text: "Abrir Configuración" }
-                        ]
+                        icons: iconPattern("settings")
                     }
                 ]
             }]
@@ -125,10 +119,10 @@
     function handleMenuClick(id) {
         switch(id) {
             case "biw-import":
-            case "biw-import-file":
                 openImportWindow();
                 break;
             case "biw-refresh":
+            case "biw-refresh-all":
                 refreshData();
                 break;
             case "biw-filters":
@@ -269,7 +263,7 @@
 
     /**
      * Inserta datos en la hoja de cálculo con formato
-     * Limpia datos anteriores antes de insertar
+     * Usa Defined Names (nombres definidos ocultos) para guardar el rango usado en el archivo Excel
      * @param {Array} rows - Filas de datos a insertar
      * @param {Function} callback - Callback después de insertar
      */
@@ -287,6 +281,7 @@
         
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
+            var sheetName = oSheet.GetName();
             var data = Asc.scope.insertRows;
             
             if (!data || data.length === 0) {
@@ -297,12 +292,60 @@
             var numRows = data.length + 1; // +1 para headers
             var numCols = headers.length;
             
-            // LIMPIAR área anterior (hasta 200 filas x 100 columnas)
-            var clearRange = oSheet.GetRange("A1:CV200");
-            clearRange.SetValue("");
-            clearRange.SetFillColor(Api.CreateColorFromRGB(255, 255, 255));
-            clearRange.SetFontColor(Api.CreateColorFromRGB(0, 0, 0));
-            clearRange.SetBold(false);
+            // Función para convertir número de columna a letra (0=A, 25=Z, 26=AA)
+            function colToLetter(col) {
+                var letter = '';
+                var temp = col;
+                while (temp >= 0) {
+                    letter = String.fromCharCode((temp % 26) + 65) + letter;
+                    temp = Math.floor(temp / 26) - 1;
+                }
+                return letter;
+            }
+            
+            // Nombre de la hoja oculta para metadata
+            var metaSheetName = "_BIWMeta";
+            var metaSheet = Api.GetSheet(metaSheetName);
+            
+            // Si no existe la hoja de metadata, crearla y ocultarla
+            if (!metaSheet) {
+                Api.AddSheet(metaSheetName);
+                metaSheet = Api.GetSheet(metaSheetName);
+                if (metaSheet) {
+                    metaSheet.SetVisible(false);
+                }
+            }
+            
+            // Leer metadata anterior (formato: sheetName|rows|cols en cada fila)
+            var prevRows = 0;
+            var prevCols = 0;
+            if (metaSheet) {
+                // Buscar la fila que corresponde a esta hoja
+                for (var i = 0; i < 100; i++) {
+                    var storedSheet = metaSheet.GetRangeByNumber(i, 0).GetValue();
+                    if (storedSheet === sheetName) {
+                        prevRows = parseInt(metaSheet.GetRangeByNumber(i, 1).GetValue()) || 0;
+                        prevCols = parseInt(metaSheet.GetRangeByNumber(i, 2).GetValue()) || 0;
+                        break;
+                    }
+                    if (!storedSheet || storedSheet === "") break;
+                }
+            }
+            
+            // LIMPIAR área anterior si existe
+            if (prevRows > 0 && prevCols > 0) {
+                var clearEndCol = colToLetter(prevCols - 1);
+                var clearRangeStr = "A1:" + clearEndCol + prevRows;
+                var clearRange = oSheet.GetRange(clearRangeStr);
+                if (clearRange) {
+                    // Limpiar valores y formato
+                    clearRange.SetValue("");
+                    // 'No Fill' quita el color de fondo y deja visible el grid
+                    clearRange.SetFillColor('No Fill');
+                    clearRange.SetFontColor(Api.CreateColorFromRGB(0, 0, 0));
+                    clearRange.SetBold(false);
+                }
+            }
             
             // Colores
             var headerBg = Api.CreateColorFromRGB(30, 58, 95);
@@ -332,10 +375,40 @@
                 }
             }
             
+            // Guardar metadata en hoja oculta (sheetName, rows, cols)
+            if (metaSheet) {
+                // Buscar o crear la fila para esta hoja
+                var metaRow = -1;
+                var emptyRow = -1;
+                for (var i = 0; i < 100; i++) {
+                    var storedSheet = metaSheet.GetRangeByNumber(i, 0).GetValue();
+                    if (storedSheet === sheetName) {
+                        metaRow = i;
+                        break;
+                    }
+                    if ((!storedSheet || storedSheet === "") && emptyRow === -1) {
+                        emptyRow = i;
+                    }
+                }
+                
+                // Si no encontramos la fila, usar la primera vacía
+                if (metaRow === -1) metaRow = (emptyRow !== -1) ? emptyRow : 0;
+                
+                // Guardar: sheetName, rows, cols
+                metaSheet.GetRangeByNumber(metaRow, 0).SetValue(sheetName);
+                metaSheet.GetRangeByNumber(metaRow, 1).SetValue(numRows);
+                metaSheet.GetRangeByNumber(metaRow, 2).SetValue(numCols);
+            }
+            
             // Seleccionar celda A1
             oSheet.GetRange("A1").Select();
             
-            return { success: true, count: data.length, columns: headers.length };
+            return { 
+                success: true, 
+                count: data.length, 
+                columns: headers.length,
+                sheetName: sheetName
+            };
             
         }, false, true, function(result) {
             console.log(`[${PLUGIN_NAME}] Inserción completada:`, result);

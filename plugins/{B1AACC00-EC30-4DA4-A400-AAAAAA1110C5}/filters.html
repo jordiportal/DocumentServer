@@ -8,183 +8,297 @@
     <script type="text/javascript" src="./../v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="./../v1/plugins.css">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(180deg, #1a2a3a 0%, #243447 100%);
-            color: #e0e6ed;
-            font-size: 12px;
-            height: 100vh;
+        /* === RESET Y BASE === */
+        html, body {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
             overflow: hidden;
+            width: 100%;
+            height: 100%;
         }
+        *, *::before, *::after { box-sizing: border-box; }
+        
+        /* === TEMAS - Variables CSS === */
+        /* Modo claro (por defecto) */
+        :root, body {
+            --body-bg: #fff;
+            --section-bg: #f5f5f5;
+            --border-color: #cfcfcf;
+            --text-primary: #444444;
+            --text-secondary: rgba(0,0,0,0.6);
+            --accent-color: #446995;
+            --accent-hover: #3a5a80;
+            --chip-bg: rgba(68, 105, 149, 0.1);
+            --chip-border: rgba(68, 105, 149, 0.3);
+            --chip-selected-bg: rgba(68, 105, 149, 0.25);
+            --filter-color: #ed7d31;
+            --filter-bg: rgba(237, 125, 49, 0.1);
+            --filter-border: rgba(237, 125, 49, 0.3);
+            --success-color: #70ad47;
+            --error-color: #c00000;
+            --modal-overlay: rgba(0,0,0,0.4);
+        }
+        /* Modo oscuro - múltiples selectores para cubrir todas las variantes */
+        body.theme-dark,
+        body.theme-contrast-dark,
+        body.theme-type-dark,
+        body[class*="dark"] {
+            --body-bg: #333 !important;
+            --section-bg: #3d3d3d !important;
+            --border-color: #555 !important;
+            --text-primary: #e0e0e0 !important;
+            --text-secondary: rgba(255,255,255,0.6) !important;
+            --accent-color: #6a9fd4 !important;
+            --accent-hover: #5a8fc4 !important;
+            --chip-bg: rgba(106, 159, 212, 0.2) !important;
+            --chip-border: rgba(106, 159, 212, 0.5) !important;
+            --chip-selected-bg: rgba(106, 159, 212, 0.35) !important;
+            --filter-color: #f4a460 !important;
+            --filter-bg: rgba(244, 164, 96, 0.2) !important;
+            --filter-border: rgba(244, 164, 96, 0.5) !important;
+            --success-color: #90c46c !important;
+            --error-color: #ff6b6b !important;
+            --modal-overlay: rgba(0,0,0,0.7) !important;
+        }
+        body.theme-contrast-dark,
+        body[class*="contrast-dark"] {
+            --body-bg: #1e1e1e !important;
+            --section-bg: #2d2d2d !important;
+        }
+        
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            background-color: var(--body-bg);
+            background-color: var(--background-normal, var(--body-bg));
+            color: var(--text-primary);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* === LAYOUT === */
         .container {
             display: flex;
             flex-direction: column;
             height: 100%;
-            padding: 10px;
+            gap: 8px;
         }
+        
         .header {
             text-align: center;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border-color);
         }
-        .header h1 { font-size: 14px; margin-bottom: 2px; color: #4fc3f7; }
-        .header .subtitle { font-size: 10px; opacity: 0.6; }
+        .header h1 {
+            font-size: 13px;
+            margin: 0 0 2px 0;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+        .header .subtitle {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
         
-        .section { margin-bottom: 8px; }
+        /* === SECCIONES === */
+        .section { margin-bottom: 2px; }
         .section-title {
             font-size: 11px;
             font-weight: 600;
-            color: #4fc3f7;
             margin-bottom: 4px;
             display: flex;
             align-items: center;
             gap: 5px;
+            color: var(--text-primary) !important;
         }
         .section-title .count {
-            background: rgba(79,195,247,0.2);
-            padding: 1px 5px;
-            border-radius: 8px;
+            background-color: var(--chip-bg);
+            padding: 1px 6px;
+            border-radius: 10px;
             font-size: 9px;
+            font-weight: normal;
+            color: var(--text-primary) !important;
         }
         
-        select, input {
+        /* === CONTROLES FORM === */
+        select.form-control {
             width: 100%;
-            padding: 6px 8px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 4px;
-            background: rgba(0,0,0,0.3);
-            color: #e0e6ed;
-            font-size: 11px;
+            padding: 4px 6px;
+            height: 24px;
         }
-        select:focus, input:focus { outline: none; border-color: #4fc3f7; }
-        select option { background: #243447; }
         
+        /* === ZONAS DE DIMENSIONES === */
         .dim-zone {
-            min-height: 40px;
-            max-height: 65px;
+            min-height: 32px;
+            max-height: 50px;
             overflow-y: auto;
-            background: rgba(0,0,0,0.2);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 4px;
+            background: var(--section-bg);
+            background: var(--background-toolbar, var(--section-bg));
+            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 2px;
             padding: 4px;
             display: flex;
             flex-wrap: wrap;
             gap: 3px;
             align-content: flex-start;
         }
-        .dim-zone.available { max-height: 80px; }
+        .dim-zone.available { max-height: 60px; }
         .dim-zone-empty {
             width: 100%;
             text-align: center;
-            color: rgba(255,255,255,0.3);
+            color: var(--text-secondary) !important;
             font-size: 10px;
-            padding: 8px;
+            padding: 6px;
         }
         
+        /* === CHIPS DE DIMENSIÓN === */
         .dim-chip {
             display: inline-flex;
             align-items: center;
-            gap: 2px;
-            padding: 2px 5px;
-            background: rgba(79,195,247,0.2);
-            border: 1px solid rgba(79,195,247,0.4);
+            gap: 3px;
+            padding: 3px 7px;
+            background-color: var(--chip-bg);
+            border: 1px solid var(--chip-border);
             border-radius: 3px;
             font-size: 10px;
             cursor: pointer;
             white-space: nowrap;
-            max-width: 120px;
+            max-width: 110px;
             overflow: hidden;
             text-overflow: ellipsis;
             user-select: none;
             transition: all 0.15s;
+            color: var(--text-primary) !important;
         }
-        .dim-chip:hover { background: rgba(79,195,247,0.35); }
+        .dim-chip:hover { background-color: var(--chip-selected-bg); }
         .dim-chip.selected {
-            background: rgba(76,175,80,0.3);
-            border-color: #4caf50;
+            background-color: var(--accent-color) !important;
+            border-color: var(--accent-color) !important;
+            color: #fff !important;
         }
-        .dim-chip .arrow {
+        .dim-chip.filtered {
+            background-color: var(--filter-bg);
+            border-color: var(--filter-border);
+            color: var(--text-primary) !important;
+        }
+        .dim-chip .filter-badge {
+            background-color: var(--filter-color);
+            color: #fff !important;
             font-size: 8px;
-            opacity: 0.6;
-            margin-left: 2px;
+            padding: 0 4px;
+            border-radius: 3px;
+            margin-left: 3px;
         }
         
+        /* === BOTONES DE MOVIMIENTO === */
         .move-btns {
             display: flex;
-            gap: 3px;
-            margin-top: 4px;
-            margin-bottom: 4px;
+            gap: 4px;
+            margin: 4px 0;
         }
         .move-btn {
             flex: 1;
-            padding: 4px;
+            padding: 4px 2px;
             font-size: 9px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 3px;
-            color: #e0e6ed;
-            cursor: pointer;
         }
-        .move-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
-        .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .move-btn.filter-btn {
+            background: var(--filter-bg);
+            border-color: var(--filter-border);
+            color: var(--filter-color);
+        }
+        .move-btn.filter-btn:hover:not(:disabled) {
+            background: var(--filter-border);
+        }
         
+        /* === MÉTRICAS === */
         .metrics-container {
             display: flex;
             flex-wrap: wrap;
             gap: 3px;
-            max-height: 85px;
+            max-height: 65px;
             overflow-y: auto;
             padding: 4px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 4px;
+            background: var(--section-bg);
+            background: var(--background-toolbar, var(--section-bg));
+            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 2px;
         }
         .metric-chip {
-            padding: 2px 5px;
+            padding: 3px 6px;
             font-size: 9px;
-            background: rgba(100,100,100,0.3);
-            border: 1px solid rgba(255,255,255,0.1);
+            background-color: transparent;
+            border: 1px solid var(--border-color);
             border-radius: 3px;
             cursor: pointer;
             white-space: nowrap;
-            max-width: 105px;
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-primary) !important;
+        }
+        .metric-chip.selected {
+            background-color: var(--chip-selected-bg);
+            border-color: var(--accent-color);
+            color: var(--text-primary) !important;
+        }
+        .metric-chip:hover { border-color: var(--accent-color); }
+        
+        /* === FILTROS ACTIVOS === */
+        .filters-section {
+            background: var(--filter-bg);
+            border: 1px solid var(--filter-border);
+            border-radius: 2px;
+            padding: 6px;
+        }
+        .filters-section .section-title { color: var(--filter-color); }
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 6px;
+            background-color: var(--body-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            margin-bottom: 3px;
+            font-size: 10px;
+            color: var(--text-primary) !important;
+        }
+        .filter-item:last-child { margin-bottom: 0; }
+        .filter-item .filter-name {
+            font-weight: 600;
+            min-width: 50px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-primary) !important;
+        }
+        .filter-item .filter-values {
+            flex: 1;
+            color: var(--accent-color) !important;
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .metric-chip.selected {
-            background: rgba(76,175,80,0.35);
-            border-color: #4caf50;
-        }
-        .metric-chip:hover { border-color: rgba(255,255,255,0.3); }
-        
-        .btn-row {
-            display: flex;
-            gap: 6px;
-            margin-top: auto;
-            padding-top: 8px;
-        }
-        .btn {
-            flex: 1;
-            padding: 8px;
-            border: none;
-            border-radius: 4px;
-            font-size: 11px;
+        .filter-item .filter-remove {
             cursor: pointer;
-            transition: all 0.2s;
+            color: var(--error-color);
+            padding: 2px 4px;
+            font-size: 12px;
+            line-height: 1;
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
-            color: #fff;
-        }
-        .btn-primary:hover { background: linear-gradient(135deg, #29b6f6, #0288d1); }
-        .btn-primary:disabled { background: #546e7a; cursor: not-allowed; }
-        .btn-secondary {
-            background: rgba(255,255,255,0.1);
-            color: #e0e6ed;
-            border: 1px solid rgba(255,255,255,0.2);
+        .filter-item .filter-remove:hover { opacity: 0.7; }
+        .no-filters {
+            text-align: center;
+            color: var(--text-secondary) !important;
+            font-size: 10px;
+            padding: 6px;
         }
         
+        /* === ACCIONES RÁPIDAS === */
         .quick-actions {
             display: flex;
             gap: 3px;
@@ -193,28 +307,127 @@
         .quick-btn {
             padding: 2px 5px;
             font-size: 9px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 3px;
-            color: #e0e6ed;
-            cursor: pointer;
         }
-        .quick-btn:hover { background: rgba(255,255,255,0.2); }
         
+        /* === BOTONES PRINCIPALES === */
+        .btn-row {
+            display: flex;
+            gap: 6px;
+            margin-top: auto;
+            padding-top: 8px;
+        }
+        .btn-row .btn-text-default {
+            flex: 1;
+            height: 26px;
+        }
+        .btn-row .btn-text-default.primary {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+            color: #fff;
+        }
+        .btn-row .btn-text-default.primary:hover {
+            background-color: var(--accent-hover);
+        }
+        .btn-row .btn-text-default.primary:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+        
+        /* === STATUS === */
         .status {
             text-align: center;
             font-size: 10px;
-            opacity: 0.7;
+            color: var(--text-secondary);
             padding: 4px;
             min-height: 18px;
         }
-        .status.error { color: #f44336; opacity: 1; }
-        .status.success { color: #4caf50; opacity: 1; }
+        .status.error { color: var(--error-color); }
+        .status.success { color: var(--success-color); }
         
+        /* === MODAL === */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--modal-overlay);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal-content {
+            background: var(--body-bg);
+            background: var(--background-normal, var(--body-bg));
+            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 4px;
+            padding: 12px;
+            width: 90%;
+            max-width: 260px;
+            max-height: 75%;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .modal-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--filter-color);
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .modal-search { margin-bottom: 8px; }
+        .modal-search input.form-control {
+            width: 100%;
+            padding: 4px 6px;
+            height: 24px;
+        }
+        .modal-values {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 180px;
+            background-color: var(--section-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 4px;
+        }
+        .value-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 6px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 10px;
+            color: var(--text-primary) !important;
+        }
+        .value-item:hover { background-color: var(--chip-bg); }
+        .value-item.selected { background-color: var(--filter-bg); color: var(--text-primary) !important; }
+        .value-item input[type="checkbox"].form-control {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+        }
+        .modal-footer {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
+        }
+        .modal-footer .btn-text-default { flex: 1; }
+        .modal-loading {
+            text-align: center;
+            padding: 16px;
+            color: var(--text-secondary);
+        }
+        
+        /* === LOADER === */
         #loader {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(26,42,58,0.95);
+            background: var(--modal-overlay);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -224,25 +437,37 @@
         #loader.hidden { display: none; }
         .spinner {
             width: 24px; height: 24px;
-            border: 2px solid rgba(255,255,255,0.2);
-            border-top-color: #4fc3f7;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-color);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        #loader-text { margin-top: 8px; font-size: 11px; }
+        #loader-text { 
+            margin-top: 8px; 
+            font-size: 11px;
+            color: var(--text-primary);
+        }
+        
+        /* === UTILIDADES === */
+        .noselect {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
     </style>
 </head>
-<body>
+<body class="noselect">
     <div class="container">
         <div class="header">
             <h1>⚙️ Configurar Query</h1>
-            <div class="subtitle">Selecciona dimensiones y métricas</div>
+            <div class="subtitle">Dimensiones, métricas y filtros</div>
         </div>
 
         <div class="section">
             <div class="section-title">Query BW</div>
-            <select id="querySelect">
+            <select id="querySelect" class="form-control">
                 <option value="">Cargando...</option>
             </select>
         </div>
@@ -253,9 +478,10 @@
         </div>
 
         <div class="move-btns">
-            <button class="move-btn" id="btnToRows" disabled>↑ A Filas</button>
-            <button class="move-btn" id="btnToCols" disabled>↑ A Columnas</button>
-            <button class="move-btn" id="btnToAvail" disabled>↓ Quitar</button>
+            <button class="btn-text-default move-btn" id="btnToRows" disabled>↑ Filas</button>
+            <button class="btn-text-default move-btn" id="btnToCols" disabled>↑ Columnas</button>
+            <button class="btn-text-default move-btn" id="btnToAvail" disabled>↓ Quitar</button>
+            <button class="btn-text-default move-btn filter-btn" id="btnAddFilter" disabled>🔍 Filtrar</button>
         </div>
 
         <div class="section">
@@ -268,12 +494,19 @@
             <div class="dim-zone available" id="availZone"></div>
         </div>
 
+        <div class="filters-section" id="filtersSection">
+            <div class="section-title">🔍 Filtros <span class="count" id="filterCount">0</span></div>
+            <div id="filtersList">
+                <div class="no-filters">Sin filtros activos</div>
+            </div>
+        </div>
+
         <div class="section" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
             <div class="section-title">📐 Métricas <span class="count" id="metricCount">0/0</span></div>
             <div class="quick-actions">
-                <button class="quick-btn" id="btnSelectAll">✓ Todas</button>
-                <button class="quick-btn" id="btnSelectNone">✗ Ninguna</button>
-                <button class="quick-btn" id="btnSelectMain">★ Principales</button>
+                <button class="btn-text-default quick-btn" id="btnSelectAll">✓ Todas</button>
+                <button class="btn-text-default quick-btn" id="btnSelectNone">✗ Ninguna</button>
+                <button class="btn-text-default quick-btn" id="btnSelectMain">★ Principales</button>
             </div>
             <div class="metrics-container" id="metricsZone" style="flex: 1;"></div>
         </div>
@@ -281,8 +514,24 @@
         <div class="status" id="status"></div>
 
         <div class="btn-row">
-            <button class="btn btn-secondary" id="btnReset">🔄 Reset</button>
-            <button class="btn btn-primary" id="btnApply" disabled>▶️ Ejecutar</button>
+            <button class="btn-text-default" id="btnReset">🔄 Reset</button>
+            <button class="btn-text-default submit primary" id="btnApply" disabled>▶️ Ejecutar</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="filterModal">
+        <div class="modal-content">
+            <div class="modal-header" id="modalTitle">Filtrar dimensión</div>
+            <div class="modal-search">
+                <input type="text" id="modalSearch" class="form-control" placeholder="Buscar valor...">
+            </div>
+            <div class="modal-values" id="modalValues">
+                <div class="modal-loading">Cargando valores...</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-text-default" id="btnModalCancel">Cancelar</button>
+                <button class="btn-text-default submit primary" id="btnModalApply">Aplicar</button>
+            </div>
         </div>
     </div>
 
@@ -292,34 +541,76 @@
     </div>
 
     <script>
+        // Theme handler (similar to AI plugin)
+        function updateBodyThemeClasses(themeType, themeName) {
+            var classes = document.body.className.split(' ');
+            classes.forEach(function(className) {
+                if (className.indexOf('theme-') !== -1) {
+                    document.body.classList.remove(className);
+                }
+            });
+            themeName && document.body.classList.add(themeName);
+            themeType && document.body.classList.add('theme-type-' + themeType);
+        }
+
+        function updateThemeVariables(theme) {
+            let colorRegex = /^(#([0-9a-f]{3}){1,2}|rgba?\([^\)]+\)|hsl\([^\)]+\))$/i;
+            let oldStyle = document.getElementById('theme-variables');
+            if (oldStyle) oldStyle.remove();
+
+            let style = document.createElement('style');
+            style.id = 'theme-variables';
+            let cssVariables = ":root {\n";
+
+            for (let key in theme) {
+                let value = theme[key];
+                if (colorRegex.test(value)) {
+                    let cssKey = '--' + key.replace(/([A-Z])/g, "-$1").toLowerCase();
+                    cssVariables += ' ' + cssKey + ': ' + value + ';\n';
+                }
+            }
+            cssVariables += "}";
+            style.textContent = cssVariables;
+            document.head.appendChild(style);
+        }
+
         (function() {
             'use strict';
             
             const SERVER_URL = 'http://localhost:3001';
             
-            // Estado
             let currentQuery = null;
             let dimensions = { rows: [], columns: [], available: [] };
             let allMetrics = [];
             let selectedMetrics = new Set();
-            let selectedDim = null; // Dimensión seleccionada para mover
+            let selectedDim = null;
             let selectedDimZone = null;
+            let activeFilters = {};
             
-            // DOM
+            let modalDimension = null;
+            let modalValues = [];
+            let modalSelectedValues = new Set();
+            
             const $ = id => document.getElementById(id);
             const querySelect = $('querySelect');
             const rowsZone = $('rowsZone');
             const colsZone = $('colsZone');
             const availZone = $('availZone');
             const metricsZone = $('metricsZone');
+            const filtersList = $('filtersList');
             const btnApply = $('btnApply');
             const btnReset = $('btnReset');
             const btnToRows = $('btnToRows');
             const btnToCols = $('btnToCols');
             const btnToAvail = $('btnToAvail');
+            const btnAddFilter = $('btnAddFilter');
             const status = $('status');
             const loader = $('loader');
             const loaderText = $('loader-text');
+            const filterModal = $('filterModal');
+            const modalTitle = $('modalTitle');
+            const modalSearch = $('modalSearch');
+            const modalValuesDiv = $('modalValues');
             
             function showLoader(text) {
                 loaderText.textContent = text;
@@ -357,10 +648,7 @@
             }
             
             async function loadQueryDimensions(queryName) {
-                if (!queryName) {
-                    resetState();
-                    return;
-                }
+                if (!queryName) { resetState(); return; }
                 
                 showLoader('Cargando estructura...');
                 currentQuery = queryName;
@@ -399,6 +687,7 @@
                             .map(m => m.uid)
                     );
                     
+                    activeFilters = {};
                     selectedDim = null;
                     selectedDimZone = null;
                     
@@ -418,6 +707,7 @@
                 renderZone(colsZone, dimensions.columns, 'columns');
                 renderZone(availZone, dimensions.available, 'available');
                 renderMetrics();
+                renderFilters();
                 updateCounts();
                 updateMoveButtons();
             }
@@ -428,22 +718,23 @@
                 } else {
                     zone.innerHTML = items.map(d => {
                         const isSelected = selectedDim === d.name && selectedDimZone === zoneName;
-                        return `<div class="dim-chip ${isSelected ? 'selected' : ''}" 
+                        const hasFilter = activeFilters[d.name];
+                        const filterCount = hasFilter ? hasFilter.values.length : 0;
+                        return `<div class="dim-chip ${isSelected ? 'selected' : ''} ${hasFilter ? 'filtered' : ''}" 
                              data-name="${d.name}" data-zone="${zoneName}"
-                             title="${d.caption} (${d.name})">
+                             title="${d.caption} (${d.name})${hasFilter ? ' - ' + filterCount + ' filtros' : ''}">
                             ${d.caption}
+                            ${hasFilter ? `<span class="filter-badge">${filterCount}</span>` : ''}
                         </div>`;
                     }).join('');
                 }
                 
-                // Click para seleccionar
                 zone.querySelectorAll('.dim-chip').forEach(chip => {
                     chip.addEventListener('click', () => {
                         const name = chip.dataset.name;
                         const z = chip.dataset.zone;
                         
                         if (selectedDim === name && selectedDimZone === z) {
-                            // Deseleccionar
                             selectedDim = null;
                             selectedDimZone = null;
                         } else {
@@ -451,6 +742,39 @@
                             selectedDimZone = z;
                         }
                         renderAll();
+                    });
+                });
+            }
+            
+            function renderFilters() {
+                const filterNames = Object.keys(activeFilters);
+                $('filterCount').textContent = filterNames.length;
+                
+                if (filterNames.length === 0) {
+                    filtersList.innerHTML = '<div class="no-filters">Sin filtros activos</div>';
+                    return;
+                }
+                
+                filtersList.innerHTML = filterNames.map(name => {
+                    const filter = activeFilters[name];
+                    const valuesText = filter.values.length > 2 
+                        ? filter.values.slice(0, 2).map(v => v.text).join(', ') + ` (+${filter.values.length - 2})`
+                        : filter.values.map(v => v.text).join(', ');
+                    return `<div class="filter-item">
+                        <span class="filter-name" title="${filter.caption}">${filter.caption}</span>
+                        <span class="filter-values" title="${filter.values.map(v => v.text).join(', ')}">${valuesText}</span>
+                        <span class="filter-remove" data-name="${name}" title="Eliminar filtro">✕</span>
+                    </div>`;
+                }).join('');
+                
+                filtersList.querySelectorAll('.filter-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const name = btn.dataset.name;
+                        const caption = activeFilters[name]?.caption || name;
+                        delete activeFilters[name];
+                        renderAll();
+                        setStatus(`Filtro "${caption}" eliminado`);
                     });
                 });
             }
@@ -464,6 +788,7 @@
                 btnToRows.disabled = !hasSelection || inRows;
                 btnToCols.disabled = !hasSelection || inCols;
                 btnToAvail.disabled = !hasSelection || inAvail;
+                btnAddFilter.disabled = !hasSelection;
             }
             
             function moveDimension(toZone) {
@@ -484,6 +809,88 @@
                 selectedDim = null;
                 selectedDimZone = null;
                 renderAll();
+            }
+            
+            async function openFilterModal() {
+                if (!selectedDim || !currentQuery) return;
+                
+                const allDims = [...dimensions.rows, ...dimensions.columns, ...dimensions.available];
+                const dim = allDims.find(d => d.name === selectedDim);
+                if (!dim) return;
+                
+                modalDimension = dim;
+                modalTitle.textContent = `Filtrar: ${dim.caption}`;
+                modalValuesDiv.innerHTML = '<div class="modal-loading">Cargando valores...</div>';
+                modalSearch.value = '';
+                filterModal.classList.remove('hidden');
+                
+                modalSelectedValues = new Set(
+                    (activeFilters[dim.name]?.values || []).map(v => v.key)
+                );
+                
+                try {
+                    const res = await fetch(`${SERVER_URL}/api/bw-query/dimension-members/${currentQuery}/${dim.name}`);
+                    if (!res.ok) throw new Error('Error cargando valores');
+                    const data = await res.json();
+                    
+                    modalValues = data.members || [];
+                    renderModalValues();
+                    
+                } catch (e) {
+                    modalValuesDiv.innerHTML = `<div class="modal-loading">Error: ${e.message}</div>`;
+                }
+            }
+            
+            function renderModalValues(searchText = '') {
+                const filtered = searchText 
+                    ? modalValues.filter(v => 
+                        v.text.toLowerCase().includes(searchText.toLowerCase()) ||
+                        v.key.toLowerCase().includes(searchText.toLowerCase())
+                      )
+                    : modalValues;
+                
+                if (filtered.length === 0) {
+                    modalValuesDiv.innerHTML = '<div class="modal-loading">Sin resultados</div>';
+                    return;
+                }
+                
+                modalValuesDiv.innerHTML = filtered.slice(0, 100).map(v => `
+                    <div class="value-item ${modalSelectedValues.has(v.key) ? 'selected' : ''}" data-key="${v.key}">
+                        <input type="checkbox" class="form-control" ${modalSelectedValues.has(v.key) ? 'checked' : ''}>
+                        <span title="${v.key}">${v.text}</span>
+                    </div>
+                `).join('') + (filtered.length > 100 ? `<div class="modal-loading">...y ${filtered.length - 100} más</div>` : '');
+                
+                modalValuesDiv.querySelectorAll('.value-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const key = item.dataset.key;
+                        if (modalSelectedValues.has(key)) {
+                            modalSelectedValues.delete(key);
+                        } else {
+                            modalSelectedValues.add(key);
+                        }
+                        renderModalValues(modalSearch.value);
+                    });
+                });
+            }
+            
+            function applyFilter() {
+                if (!modalDimension) return;
+                
+                if (modalSelectedValues.size === 0) {
+                    delete activeFilters[modalDimension.name];
+                } else {
+                    const selectedItems = modalValues.filter(v => modalSelectedValues.has(v.key));
+                    activeFilters[modalDimension.name] = {
+                        name: modalDimension.name,
+                        caption: modalDimension.caption,
+                        values: selectedItems
+                    };
+                }
+                
+                filterModal.classList.add('hidden');
+                renderAll();
+                setStatus(`Filtro "${modalDimension.caption}" actualizado`);
             }
             
             function renderMetrics() {
@@ -526,6 +933,7 @@
                 selectedMetrics = new Set();
                 selectedDim = null;
                 selectedDimZone = null;
+                activeFilters = {};
                 currentQuery = null;
                 btnApply.disabled = true;
                 renderAll();
@@ -537,12 +945,17 @@
                 
                 showLoader('Ejecutando query...');
                 
+                const filtersArray = Object.values(activeFilters).map(f => ({
+                    dimension: f.name,
+                    values: f.values.map(v => v.key)
+                }));
+                
                 const config = {
                     queryName: currentQuery,
                     rowDimensions: dimensions.rows.map(d => d.name),
                     columnDimensions: dimensions.columns.map(d => d.name),
                     selectedKeyFigures: Array.from(selectedMetrics),
-                    filters: []
+                    filters: filtersArray
                 };
                 
                 try {
@@ -606,10 +1019,16 @@
                 updateCounts();
             });
             
-            // Move buttons
+            // Move & filter buttons
             btnToRows.addEventListener('click', () => moveDimension('rows'));
             btnToCols.addEventListener('click', () => moveDimension('columns'));
             btnToAvail.addEventListener('click', () => moveDimension('available'));
+            btnAddFilter.addEventListener('click', openFilterModal);
+            
+            // Modal events
+            $('btnModalCancel').addEventListener('click', () => filterModal.classList.add('hidden'));
+            $('btnModalApply').addEventListener('click', applyFilter);
+            modalSearch.addEventListener('input', (e) => renderModalValues(e.target.value));
             
             // Events
             querySelect.addEventListener('change', (e) => loadQueryDimensions(e.target.value));
@@ -622,8 +1041,13 @@
             };
             
             window.Asc.plugin.button = function(id) {};
+            
+            window.Asc.plugin.onThemeChanged = function(theme) {
+                updateBodyThemeClasses(theme.type, theme.name);
+                updateThemeVariables(theme);
+            };
+            
             window.Asc.plugin.onTranslate = function() {};
-            window.Asc.plugin.onThemeChanged = function() {};
         })();
     </script>
 </body>
