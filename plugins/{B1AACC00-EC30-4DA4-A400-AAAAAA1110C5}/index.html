@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>BIW Data Connector</title>
+    
+    <!-- ONLYOFFICE Plugin SDK -->
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="../v1/plugins.css">
+    <link rel="stylesheet" href="styles/main.css">
+    
+    <!-- BIW Scripts -->
+    <script type="text/javascript" src="scripts/biw-client.js"></script>
+    <script type="text/javascript" src="scripts/pivot-builder.js"></script>
+    
+    <style>
+        .plugin-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 12px;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        
+        .section {
+            margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #fff;
+        }
+        
+        .section-header {
+            padding: 8px 10px;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            border-radius: 5px 5px 0 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .section-content {
+            padding: 10px;
+        }
+        
+        .connection-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .input-url {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        .btn-icon {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+        }
+        
+        .btn-icon:hover {
+            background: #e8e8e8;
+        }
+        
+        .status-indicator {
+            margin-left: auto;
+            font-size: 14px;
+        }
+        
+        .status-indicator.connected { color: #4CAF50; }
+        .status-indicator.error { color: #f44336; }
+        .status-indicator.checking { color: #ff9800; }
+        
+        .endpoints-list {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        
+        .endpoint-item {
+            padding: 8px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .endpoint-item:hover {
+            border-color: #2196F3;
+            background: #f5f9ff;
+        }
+        
+        .endpoint-item.selected {
+            border-color: #2196F3;
+            background: #e3f2fd;
+        }
+        
+        .endpoint-name {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .endpoint-query {
+            font-size: 10px;
+            color: #666;
+            margin-top: 2px;
+        }
+        
+        .selector-group {
+            margin-bottom: 10px;
+        }
+        
+        .selector-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 4px;
+            color: #555;
+        }
+        
+        .multi-select {
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 8px;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 1px solid #ccc;
+            padding: 8px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .preview-container {
+            background: #f9f9f9;
+            border-radius: 4px;
+            padding: 8px;
+            max-height: 150px;
+            overflow: auto;
+            font-size: 10px;
+        }
+        
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+        }
+        
+        .preview-table th {
+            background: #e0e0e0;
+            padding: 4px 6px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        
+        .preview-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            color: #f44336;
+            padding: 8px;
+            background: #ffebee;
+            border-radius: 4px;
+        }
+        
+        .preview-info {
+            padding: 6px 8px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="plugin-container">
+        <!-- Conexión -->
+        <div class="section">
+            <div class="section-header">
+                <span>🔌</span>
+                <span>Conexión</span>
+                <span id="connection-status" class="status-indicator">⏳</span>
+            </div>
+            <div class="section-content">
+                <div class="connection-row">
+                    <input type="text" id="proxy-url" class="input-url" 
+                           placeholder="http://localhost:3001" 
+                           value="http://localhost:3001">
+                    <button type="button" class="btn-icon" id="btn-reconnect" title="Reconectar">🔄</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Endpoints -->
+        <div class="section">
+            <div class="section-header">
+                <span>📊</span>
+                <span>Fuentes de Datos</span>
+            </div>
+            <div class="section-content">
+                <div id="endpoints-list" class="endpoints-list">
+                    <div class="loading">Cargando...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Opciones -->
+        <div class="section" id="options-section" style="display:none;">
+            <div class="section-header">
+                <span>⚙️</span>
+                <span>Configuración</span>
+            </div>
+            <div class="section-content">
+                <div class="selector-group">
+                    <label>🔢 Dimensiones (Filas)</label>
+                    <select id="select-rows" multiple class="multi-select" size="2"></select>
+                </div>
+                
+                <div class="selector-group">
+                    <label>💰 Valores (Ratios)</label>
+                    <select id="select-values" multiple class="multi-select" size="2"></select>
+                </div>
+                
+                <div class="selector-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-hierarchy" checked>
+                        <span>📂 Habilitar drill-down jerárquico</span>
+                    </label>
+                </div>
+                
+                <button type="button" class="btn-secondary" id="btn-preview">👁️ Vista Previa</button>
+            </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="section" id="preview-section" style="display:none;">
+            <div class="section-header">
+                <span>👁️</span>
+                <span>Vista Previa</span>
+            </div>
+            <div class="section-content">
+                <div id="preview-info" class="preview-info"></div>
+                <div id="data-preview" class="preview-container"></div>
+            </div>
+        </div>
+
+        <!-- Insertar -->
+        <div class="section">
+            <div class="section-content" style="padding-top: 0;">
+                <button type="button" class="btn-primary" id="btn-insert" disabled>
+                    ⬇️ Insertar en Nueva Hoja
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="scripts/code.js"></script>
+</body>
+</html>

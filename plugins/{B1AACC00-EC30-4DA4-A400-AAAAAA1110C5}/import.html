@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Importar datos BIW</title>
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="../v1/plugins.css">
+    <link rel="stylesheet" href="styles/main.css">
+    
+    <script type="text/javascript" src="scripts/biw-client.js"></script>
+    <script type="text/javascript" src="scripts/pivot-builder.js"></script>
+</head>
+<body>
+    <div class="plugin-container">
+        <!-- Conexión -->
+        <div class="section connection-section">
+            <div class="section-header">
+                <span class="section-icon">🔌</span>
+                <span class="section-title">Conexión</span>
+                <span id="connection-status" class="status-indicator"></span>
+            </div>
+            <div class="connection-controls">
+                <input type="text" id="proxy-url" class="input-url" 
+                       placeholder="http://localhost:3001" 
+                       value="http://localhost:3001">
+                <button type="button" class="btn-icon" onclick="reconnect()" title="Reconectar">
+                    🔄
+                </button>
+            </div>
+        </div>
+
+        <!-- Endpoints -->
+        <div class="section endpoints-section">
+            <div class="section-header">
+                <span class="section-icon">📊</span>
+                <span class="section-title">Fuentes de Datos</span>
+            </div>
+            <div id="endpoints-list" class="endpoints-list">
+                <div class="loading">Cargando...</div>
+            </div>
+        </div>
+
+        <!-- Opciones de Layout -->
+        <div id="endpoint-options" class="section options-section">
+            <div class="empty">Selecciona una fuente de datos</div>
+        </div>
+
+        <!-- Preview -->
+        <div id="preview-section" class="section preview-section" style="display:none;">
+            <div class="section-header">
+                <span class="section-icon">👁️</span>
+                <span class="section-title">Vista Previa</span>
+            </div>
+            <div id="preview-info" class="preview-info"></div>
+            <div id="hierarchy-tree" class="hierarchy-tree"></div>
+            <div id="data-preview" class="data-preview-container"></div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        // Variables globales
+        let biwClient = null;
+        let pivotBuilder = null;
+        let currentData = null;
+        let selectedEndpoint = null;
+        let currentDimensions = { dimensions: [], measures: [] };
+        let currentHierarchy = { hierarchy: {}, expanded: new Set() };
+
+        /**
+         * Inicialización automática al cargar el DOM
+         */
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[BIW Import] DOM cargado, iniciando...');
+            initializePanel();
+        });
+
+        /**
+         * Inicialización del panel
+         */
+        function initializePanel() {
+            console.log('[BIW Import] Inicializando panel...');
+            
+            // Crear instancias si existen las clases
+            if (typeof window.BiwClient !== 'undefined') {
+                biwClient = new window.BiwClient();
+                biwClient.loadConfig();
+            } else {
+                console.error('[BIW Import] BiwClient no encontrado');
+            }
+            
+            if (typeof window.PivotBuilder !== 'undefined') {
+                pivotBuilder = new window.PivotBuilder();
+            }
+            
+            // Inicializar UI
+            updateConnectionStatus();
+            loadEndpoints();
+        }
+
+        // Compatibilidad con API de plugin si está disponible
+        if (typeof window.Asc !== 'undefined' && window.Asc.plugin) {
+            window.Asc.plugin.init = function(data) {
+                console.log('[BIW Import] Ventana inicializada via plugin API');
+                initializePanel();
+            };
+
+            window.Asc.plugin.button = function(id) {
+                if (id === -1) {
+                    window.Asc.plugin.sendToParentWindow("onCloseWindow");
+                }
+            };
+        }
+
+        /**
+         * Actualiza el estado de conexión
+         */
+        async function updateConnectionStatus() {
+            const statusEl = document.getElementById('connection-status');
+            const urlInput = document.getElementById('proxy-url');
+            
+            if (!statusEl) return;
+            
+            const config = biwClient.getConfig();
+            if (urlInput) {
+                urlInput.value = config.baseUrl;
+            }
+            
+            statusEl.innerHTML = '⏳';
+            statusEl.className = 'status-indicator checking';
+            
+            try {
+                const connected = await biwClient.checkConnection();
+                
+                if (connected) {
+                    statusEl.innerHTML = '✓';
+                    statusEl.className = 'status-indicator connected';
+                } else {
+                    statusEl.innerHTML = '✗';
+                    statusEl.className = 'status-indicator error';
+                }
+            } catch (error) {
+                statusEl.innerHTML = '✗';
+                statusEl.className = 'status-indicator error';
+            }
+        }
+
+        /**
+         * Reconecta al proxy
+         */
+        window.reconnect = function() {
+            const urlInput = document.getElementById('proxy-url');
+            if (urlInput && urlInput.value) {
+                biwClient.setBaseUrl(urlInput.value);
+                biwClient.saveConfig();
+                updateConnectionStatus();
+                loadEndpoints();
+            }
+        };
+
+        /**
+         * Carga los endpoints disponibles
+         */
+        async function loadEndpoints() {
+            const listEl = document.getElementById('endpoints-list');
+            if (!listEl) return;
+            
+            listEl.innerHTML = '<div class="loading">Cargando endpoints...</div>';
+            
+            try {
+                const endpoints = await biwClient.getEndpoints();
+                
+                if (endpoints.length === 0) {
+                    listEl.innerHTML = '<div class="empty">No hay endpoints configurados</div>';
+                    return;
+                }
+                
+                let html = '';
+                endpoints.forEach((endpoint, index) => {
+                    html += `
+                        <div class="endpoint-item" data-name="${endpoint.name}" onclick="selectEndpoint('${endpoint.name}')">
+                            <div class="endpoint-header">
+                                <input type="radio" name="endpoint" id="ep-${index}" value="${endpoint.name}">
+                                <label for="ep-${index}">
+                                    <strong>${endpoint.displayName || endpoint.name}</strong>
+                                </label>
+                            </div>
+                            <div class="endpoint-description">${endpoint.description || ''}</div>
+                            <div class="endpoint-query">Query: ${endpoint.queryName}</div>
+                        </div>
+                    `;
+                });
+                
+                listEl.innerHTML = html;
+                
+            } catch (error) {
+                listEl.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        /**
+         * Selecciona un endpoint
+         */
+        window.selectEndpoint = async function(endpointName) {
+            selectedEndpoint = endpointName;
+            
+            // Actualizar UI
+            document.querySelectorAll('.endpoint-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            const selectedEl = document.querySelector(`[data-name="${endpointName}"]`);
+            if (selectedEl) {
+                selectedEl.classList.add('selected');
+                selectedEl.querySelector('input[type="radio"]').checked = true;
+            }
+            
+            await loadEndpointOptions(endpointName);
+        };
+
+        /**
+         * Carga las opciones de un endpoint
+         */
+        async function loadEndpointOptions(endpointName) {
+            const optionsEl = document.getElementById('endpoint-options');
+            if (!optionsEl) return;
+            
+            optionsEl.innerHTML = '<div class="loading">Cargando dimensiones...</div>';
+            
+            try {
+                const endpoint = await biwClient.getEndpoint(endpointName);
+                
+                if (!endpoint) {
+                    optionsEl.innerHTML = '<div class="error">Endpoint no encontrado</div>';
+                    return;
+                }
+                
+                // Obtener dimensiones
+                let availableDimensions = [];
+                let availableMeasures = [];
+                
+                try {
+                    const dimResponse = await biwClient.getDimensions(endpoint.queryName);
+                    if (dimResponse && dimResponse.success) {
+                        availableDimensions = (dimResponse.dimensions || [])
+                            .filter(d => d.presentation !== 'KEY_TEXT')
+                            .map(d => ({
+                                name: d.name,
+                                description: d.caption || d.name,
+                                type: d.type
+                            }));
+                        
+                        availableMeasures = (dimResponse.keyFigures || []).map(kf => ({
+                            name: kf.uid || kf.name,
+                            description: kf.caption || kf.technicalName || kf.name,
+                            type: 'keyFigure'
+                        }));
+                    }
+                } catch (e) {
+                    console.warn('[BIW] Error cargando dimensiones:', e.message);
+                }
+                
+                currentDimensions = { dimensions: availableDimensions, measures: availableMeasures };
+                
+                // Generar opciones
+                const dimensionOptions = availableDimensions.map(d => 
+                    `<option value="${d.name}">${d.description}</option>`
+                ).join('');
+                
+                const measureOptions = availableMeasures.map(m => 
+                    `<option value="${m.name}">${m.description}</option>`
+                ).join('');
+                
+                optionsEl.innerHTML = `
+                    <div class="section-header">
+                        <span class="section-icon">⚙️</span>
+                        <span class="section-title">Configuración de Layout</span>
+                    </div>
+                    
+                    <div class="layout-selectors">
+                        <div class="selector-group">
+                            <label>🔢 Filas</label>
+                            <select id="select-rows" multiple class="multi-select" size="3">
+                                ${dimensionOptions}
+                            </select>
+                        </div>
+                        
+                        <div class="selector-group">
+                            <label>📊 Columnas</label>
+                            <select id="select-columns" multiple class="multi-select" size="3">
+                                ${dimensionOptions}
+                            </select>
+                        </div>
+                        
+                        <div class="selector-group">
+                            <label>💰 Valores</label>
+                            <select id="select-values" multiple class="multi-select" size="3">
+                                ${measureOptions}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="hierarchy-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enable-hierarchy" checked>
+                            <span>📂 Ocultar detalle (drill-down)</span>
+                        </label>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button type="button" class="btn-secondary" onclick="previewData()">
+                            👁️ Vista Previa
+                        </button>
+                        <button type="button" class="btn-primary" id="btn-insert" onclick="insertData()" disabled>
+                            ⬇️ Insertar en Nueva Hoja
+                        </button>
+                    </div>
+                `;
+                
+            } catch (error) {
+                optionsEl.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        /**
+         * Vista previa de los datos
+         */
+        window.previewData = async function() {
+            if (!selectedEndpoint) {
+                alert('Selecciona un endpoint primero');
+                return;
+            }
+            
+            const previewSection = document.getElementById('preview-section');
+            const previewEl = document.getElementById('data-preview');
+            const previewInfo = document.getElementById('preview-info');
+            
+            if (!previewEl) return;
+            
+            previewSection.style.display = 'block';
+            previewEl.innerHTML = '<div class="loading">Consultando datos...</div>';
+            
+            try {
+                const options = getLayoutOptions();
+                const result = await biwClient.executeEndpoint(selectedEndpoint, options);
+                
+                if (result.success && result.data) {
+                    currentData = result.data;
+                    
+                    // Habilitar botón de insertar
+                    document.getElementById('btn-insert').disabled = false;
+                    
+                    // Detectar jerarquía
+                    const columns = Object.keys(result.data[0] || {});
+                    currentHierarchy.hierarchy = detectHierarchy(columns);
+                    currentHierarchy.expanded = new Set();
+                    
+                    // Mostrar info
+                    previewInfo.innerHTML = `📊 ${result.data.length} registros | ${columns.length} columnas`;
+                    
+                    // Renderizar árbol y preview
+                    renderHierarchyTree();
+                    renderPreviewTable();
+                } else {
+                    previewEl.innerHTML = '<div class="empty">No se obtuvieron datos</div>';
+                }
+                
+            } catch (error) {
+                previewEl.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                currentData = null;
+            }
+        };
+
+        /**
+         * Obtiene las opciones de layout
+         */
+        function getLayoutOptions() {
+            const rowsSelect = document.getElementById('select-rows');
+            const colsSelect = document.getElementById('select-columns');
+            const valuesSelect = document.getElementById('select-values');
+            
+            return {
+                rowDimensions: rowsSelect ? Array.from(rowsSelect.selectedOptions).map(o => o.value) : [],
+                columnDimensions: colsSelect ? Array.from(colsSelect.selectedOptions).map(o => o.value) : [],
+                selectedKeyFigures: valuesSelect ? Array.from(valuesSelect.selectedOptions).map(o => o.value) : []
+            };
+        }
+
+        /**
+         * Detecta jerarquía en columnas
+         */
+        function detectHierarchy(columns) {
+            const hierarchy = {
+                parents: {},
+                children: {},
+                isParent: {},
+                isChild: {},
+                order: []
+            };
+            
+            let currentParent = null;
+            
+            columns.forEach(col => {
+                hierarchy.order.push(col);
+                
+                if (col.startsWith('(+)')) {
+                    currentParent = col;
+                    hierarchy.isParent[col] = true;
+                    hierarchy.parents[col] = [];
+                } else if ((col.startsWith('    ') || col.startsWith('  ')) && currentParent) {
+                    hierarchy.parents[currentParent].push(col);
+                    hierarchy.children[col] = currentParent;
+                    hierarchy.isChild[col] = true;
+                } else {
+                    currentParent = null;
+                }
+            });
+            
+            return hierarchy;
+        }
+
+        /**
+         * Renderiza el árbol de jerarquía
+         */
+        function renderHierarchyTree() {
+            const container = document.getElementById('hierarchy-tree');
+            if (!container) return;
+            
+            const parents = Object.keys(currentHierarchy.hierarchy.parents || {});
+            const enableHierarchy = document.getElementById('enable-hierarchy')?.checked;
+            
+            if (parents.length === 0 || !enableHierarchy) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            let html = '<div class="hierarchy-header">📂 Grupos jerárquicos:</div><div class="hierarchy-nodes">';
+            
+            parents.forEach(parent => {
+                const childCount = currentHierarchy.hierarchy.parents[parent].length;
+                const displayName = parent.replace('(+) ', '');
+                
+                html += `
+                    <div class="hierarchy-node">
+                        <span class="node-icon">📁</span>
+                        <span class="node-name">${displayName}</span>
+                        <span class="node-count">(${childCount} columnas)</span>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        /**
+         * Renderiza la tabla de preview
+         */
+        function renderPreviewTable() {
+            const previewEl = document.getElementById('data-preview');
+            if (!previewEl || !currentData || currentData.length === 0) return;
+            
+            const previewRows = currentData.slice(0, 5);
+            const columns = Object.keys(previewRows[0] || {});
+            
+            let html = `
+                <div class="preview-table-wrapper">
+                    <table class="preview-table">
+                        <thead>
+                            <tr>
+                                ${columns.map(col => {
+                                    const isParent = currentHierarchy.hierarchy?.isParent?.[col];
+                                    const icon = isParent ? '📂 ' : '';
+                                    const displayCol = col.replace('(+) ', '').trim();
+                                    return `<th title="${col}">${icon}${displayCol}</th>`;
+                                }).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${previewRows.map(row => `
+                                <tr>
+                                    ${columns.map(col => `<td>${formatValue(row[col])}</td>`).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ${currentData.length > 5 ? `<div class="preview-more">... y ${currentData.length - 5} registros más</div>` : ''}
+            `;
+            
+            previewEl.innerHTML = html;
+        }
+
+        /**
+         * Formatea un valor para mostrar
+         */
+        function formatValue(value) {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'number') {
+                return value.toLocaleString('es-ES', { maximumFractionDigits: 2 });
+            }
+            return String(value);
+        }
+
+        /**
+         * Inserta los datos en la hoja
+         */
+        window.insertData = function() {
+            if (!currentData || currentData.length === 0) {
+                alert('No hay datos para insertar');
+                return;
+            }
+            
+            const btn = document.getElementById('btn-insert');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Insertando...';
+            
+            const timestamp = new Date().toISOString().slice(0, 16).replace(/[:-]/g, '');
+            const sheetName = `BIW_${selectedEndpoint}_${timestamp}`.substring(0, 31);
+            const enableHierarchy = document.getElementById('enable-hierarchy')?.checked;
+            
+            // Enviar datos al plugin padre via postMessage
+            window.parent.postMessage({
+                source: 'biw-import',
+                type: 'insertData',
+                payload: {
+                    data: currentData,
+                    sheetName: sheetName,
+                    options: {
+                        enableHierarchy: enableHierarchy
+                    }
+                }
+            }, '*');
+        };
+
+        /**
+         * Escucha mensajes del plugin padre
+         */
+        window.addEventListener('message', function(event) {
+            if (!event.data || event.data.source !== 'biw-plugin') return;
+            
+            console.log('[BIW Import] Mensaje recibido:', event.data.type);
+            
+            if (event.data.type === 'insertComplete') {
+                handleInsertComplete(event.data.payload);
+            }
+        });
+
+        /**
+         * Maneja notificación de inserción completada
+         */
+        function handleInsertComplete(result) {
+            const btn = document.getElementById('btn-insert');
+            
+            if (result && result.success) {
+                btn.innerHTML = '✅ Datos Insertados';
+                btn.className = 'btn-primary success';
+                
+                setTimeout(() => {
+                    btn.innerHTML = '⬇️ Insertar en Nueva Hoja';
+                    btn.className = 'btn-primary';
+                    btn.disabled = false;
+                }, 3000);
+            } else {
+                btn.innerHTML = '❌ Error';
+                alert('Error: ' + (result?.error || 'Error desconocido'));
+                
+                setTimeout(() => {
+                    btn.innerHTML = '⬇️ Insertar en Nueva Hoja';
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>

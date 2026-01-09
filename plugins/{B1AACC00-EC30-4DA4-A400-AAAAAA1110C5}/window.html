@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar Datos BIW</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 1.4em;
+            margin-bottom: 5px;
+        }
+        .header .subtitle {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+        .status-bar {
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ffc107;
+            animation: pulse 1.5s infinite;
+        }
+        .status-indicator.connected {
+            background: #4caf50;
+            animation: none;
+        }
+        .status-indicator.error {
+            background: #f44336;
+            animation: none;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 0.95em;
+        }
+        .form-group input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #4fc3f7;
+            background: rgba(255,255,255,0.15);
+        }
+        .form-group select option {
+            background: #2d5a87;
+            color: #fff;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #29b6f6, #0288d1);
+        }
+        .btn-primary:disabled {
+            background: #546e7a;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .queries-list {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        .query-item {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .query-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .query-item.selected {
+            background: rgba(79, 195, 247, 0.3);
+        }
+        .query-item:last-child {
+            border-bottom: none;
+        }
+        .query-name {
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+        .query-desc {
+            font-size: 0.8em;
+            opacity: 0.7;
+        }
+        .loading {
+            text-align: center;
+            padding: 30px;
+            opacity: 0.7;
+        }
+        .error-msg {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.75em;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Importar Datos BIW</h1>
+        <div class="subtitle">Conecta y carga datos desde SAP BW</div>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-indicator" id="statusIndicator"></div>
+        <span id="statusText">Conectando...</span>
+    </div>
+
+    <div class="form-group">
+        <label>Servidor BIW:</label>
+        <input type="text" id="serverUrl" value="http://localhost:3001" placeholder="URL del servidor">
+    </div>
+
+    <div class="form-group">
+        <label>Queries disponibles:</label>
+        <div class="queries-list" id="queriesList">
+            <div class="loading">⏳ Cargando queries...</div>
+        </div>
+    </div>
+
+    <div id="errorContainer"></div>
+
+    <button class="btn btn-primary" id="btnInsert" disabled>
+        ⬇️ Insertar en Hoja Activa
+    </button>
+    
+    <button class="btn btn-secondary" id="btnRefresh">
+        🔄 Actualizar Lista
+    </button>
+
+    <div class="footer">
+        BIW Data Connector v2.5.0 | Window ID: <span id="windowId">-</span>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+            
+            console.log('[Window] Inicializando ventana BIW...');
+            
+            // Obtener windowID de la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const windowId = urlParams.get('windowID');
+            document.getElementById('windowId').textContent = windowId || 'N/A';
+            console.log('[Window] Window ID:', windowId);
+            
+            // Estado
+            let selectedQuery = null;
+            let queries = [];
+            
+            // Elementos DOM
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const queriesList = document.getElementById('queriesList');
+            const btnInsert = document.getElementById('btnInsert');
+            const btnRefresh = document.getElementById('btnRefresh');
+            const serverUrl = document.getElementById('serverUrl');
+            const errorContainer = document.getElementById('errorContainer');
+            
+            // Función para mostrar error
+            function showError(msg) {
+                errorContainer.innerHTML = '<div class="error-msg">❌ ' + msg + '</div>';
+                statusIndicator.className = 'status-indicator error';
+                statusText.textContent = 'Error de conexión';
+            }
+            
+            // Función para limpiar error
+            function clearError() {
+                errorContainer.innerHTML = '';
+            }
+            
+            // Función para conectar al servidor
+            async function connect() {
+                const url = serverUrl.value.trim();
+                console.log('[Window] Conectando a:', url);
+                
+                statusIndicator.className = 'status-indicator';
+                statusText.textContent = 'Conectando...';
+                clearError();
+                
+                try {
+                    const response = await fetch(url + '/health', {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    if (!response.ok) throw new Error('Server returned ' + response.status);
+                    
+                    const data = await response.json();
+                    console.log('[Window] Servidor OK:', data);
+                    
+                    statusIndicator.className = 'status-indicator connected';
+                    statusText.textContent = 'Conectado - ' + (data.services?.total || 0) + ' servicios';
+                    
+                    // Cargar queries
+                    loadQueries();
+                    
+                } catch (error) {
+                    console.error('[Window] Error de conexión:', error);
+                    showError('No se pudo conectar: ' + error.message);
+                    queriesList.innerHTML = '<div class="loading">❌ Sin conexión</div>';
+                }
+            }
+            
+            // Función para cargar queries
+            async function loadQueries() {
+                const url = serverUrl.value.trim();
+                queriesList.innerHTML = '<div class="loading">⏳ Cargando queries...</div>';
+                
+                try {
+                    // Intentar endpoint de BW queries
+                    const response = await fetch(url + '/api/bw-query/queries', {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        queries = data.queries || data || [];
+                        renderQueries();
+                    } else {
+                        // Fallback: mostrar queries de ejemplo
+                        queries = [
+                            { id: 'ZSEGMENT_Q01', name: 'Análisis por Segmento', description: 'Ventas por segmento de mercado' },
+                            { id: 'ZSD_ORDERS', name: 'Órdenes de Venta', description: 'Pedidos de clientes' },
+                            { id: 'ZFI_BALANCE', name: 'Balance Financiero', description: 'Estado financiero consolidado' }
+                        ];
+                        renderQueries();
+                    }
+                } catch (error) {
+                    console.error('[Window] Error cargando queries:', error);
+                    // Mostrar queries de demo
+                    queries = [
+                        { id: 'DEMO_Q1', name: 'Query de Demostración', description: 'Datos de ejemplo' }
+                    ];
+                    renderQueries();
+                }
+            }
+            
+            // Función para renderizar queries
+            function renderQueries() {
+                if (queries.length === 0) {
+                    queriesList.innerHTML = '<div class="loading">No hay queries disponibles</div>';
+                    return;
+                }
+                
+                queriesList.innerHTML = queries.map((q, idx) => `
+                    <div class="query-item" data-idx="${idx}">
+                        <div class="query-name">📊 ${q.name || q.id}</div>
+                        <div class="query-desc">${q.description || q.id}</div>
+                    </div>
+                `).join('');
+                
+                // Eventos de click
+                queriesList.querySelectorAll('.query-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        queriesList.querySelectorAll('.query-item').forEach(i => i.classList.remove('selected'));
+                        this.classList.add('selected');
+                        selectedQuery = queries[parseInt(this.dataset.idx)];
+                        btnInsert.disabled = false;
+                        console.log('[Window] Query seleccionada:', selectedQuery);
+                    });
+                });
+            }
+            
+            // Función para insertar datos
+            async function insertData() {
+                if (!selectedQuery) return;
+                
+                console.log('[Window] Insertando query:', selectedQuery);
+                btnInsert.textContent = '⏳ Cargando datos...';
+                btnInsert.disabled = true;
+                
+                try {
+                    // Enviar mensaje al plugin padre
+                    const message = {
+                        type: 'insertData',
+                        windowId: windowId,
+                        query: selectedQuery,
+                        data: {
+                            // Datos de ejemplo
+                            rows: [
+                                { Segmento: 'Retail', Ventas: 150000, Margen: 22.5 },
+                                { Segmento: 'Wholesale', Ventas: 280000, Margen: 18.3 },
+                                { Segmento: 'Online', Ventas: 95000, Margen: 35.2 }
+                            ]
+                        }
+                    };
+                    
+                    // Comunicar con el plugin padre
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage(JSON.stringify(message), '*');
+                        console.log('[Window] Mensaje enviado al padre');
+                    }
+                    
+                    btnInsert.textContent = '✅ Datos insertados';
+                    setTimeout(() => {
+                        btnInsert.textContent = '⬇️ Insertar en Hoja Activa';
+                        btnInsert.disabled = false;
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('[Window] Error insertando:', error);
+                    showError('Error al insertar: ' + error.message);
+                    btnInsert.textContent = '⬇️ Insertar en Hoja Activa';
+                    btnInsert.disabled = false;
+                }
+            }
+            
+            // Event listeners
+            btnRefresh.addEventListener('click', connect);
+            btnInsert.addEventListener('click', insertData);
+            serverUrl.addEventListener('change', connect);
+            
+            // Conectar al inicio
+            setTimeout(connect, 500);
+            
+            // Escuchar mensajes del padre
+            window.addEventListener('message', function(event) {
+                console.log('[Window] Mensaje recibido:', event.data);
+                try {
+                    const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                    if (msg.type === 'close') {
+                        // Cerrar ventana
+                    }
+                } catch(e) {}
+            });
+            
+            console.log('[Window] Ventana inicializada correctamente');
+        })();
+    </script>
+</body>
+</html>

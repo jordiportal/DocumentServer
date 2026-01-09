@@ -1,0 +1,16 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background -->
+    <rect width="40" height="40" rx="8" fill="#4472C4"/>
+    
+    <!-- Data grid icon -->
+    <rect x="8" y="8" width="10" height="10" rx="2" fill="#70AD47"/>
+    <rect x="22" y="8" width="10" height="10" rx="2" fill="#FFC000"/>
+    <rect x="8" y="22" width="10" height="10" rx="2" fill="#ED7D31"/>
+    <rect x="22" y="22" width="10" height="10" rx="2" fill="white" fill-opacity="0.9"/>
+    
+    <!-- Connection lines -->
+    <line x1="18" y1="13" x2="22" y2="13" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <line x1="18" y1="27" x2="22" y2="27" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <line x1="13" y1="18" x2="13" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <line x1="27" y1="18" x2="27" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+</svg>

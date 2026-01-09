@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Filtros BIW</title>
+    <!-- Scripts locales de ONLYOFFICE para funcionalidad completa (incluido PIN/UNPIN) -->
+    <script type="text/javascript" src="./../v1/plugins.js"></script>
+    <script type="text/javascript" src="./../v1/plugins-ui.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            font-size: 12px;
+            background: var(--bg-color, #f5f5f5);
+            color: var(--text-color, #333);
+            padding: 12px;
+            min-height: 100%;
+        }
+        
+        /* Tema oscuro */
+        body.dark-theme {
+            --bg-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --border-color: #404040;
+            --input-bg: #2d2d2d;
+            --hover-bg: #3a3a3a;
+            --accent-color: #4a9eff;
+        }
+        
+        /* Tema claro */
+        body.light-theme {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --border-color: #e0e0e0;
+            --input-bg: #ffffff;
+            --hover-bg: #f0f0f0;
+            --accent-color: #0066cc;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color, #e0e0e0);
+        }
+        
+        .header h1 {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .header h1::before {
+            content: "🔍";
+        }
+        
+        .pin-status {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: var(--accent-color, #0066cc);
+            color: white;
+        }
+        
+        .section {
+            margin-bottom: 16px;
+        }
+        
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-color, #666);
+            opacity: 0.7;
+            margin-bottom: 8px;
+        }
+        
+        .filter-item {
+            background: var(--input-bg, #fff);
+            border: 1px solid var(--border-color, #e0e0e0);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        
+        .filter-item:hover {
+            background: var(--hover-bg, #f0f0f0);
+        }
+        
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        
+        .filter-name {
+            font-weight: 500;
+            font-size: 12px;
+        }
+        
+        .filter-type {
+            font-size: 10px;
+            color: var(--accent-color, #0066cc);
+            background: rgba(74, 158, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .filter-value {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        
+        .filter-value input,
+        .filter-value select {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid var(--border-color, #ddd);
+            border-radius: 4px;
+            font-size: 11px;
+            background: var(--input-bg, #fff);
+            color: var(--text-color, #333);
+        }
+        
+        .filter-value input:focus,
+        .filter-value select:focus {
+            outline: none;
+            border-color: var(--accent-color, #0066cc);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--accent-color, #0066cc);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        
+        .btn-secondary {
+            background: var(--input-bg, #fff);
+            border: 1px solid var(--border-color, #ddd);
+            color: var(--text-color, #333);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--hover-bg, #f0f0f0);
+        }
+        
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color, #e0e0e0);
+        }
+        
+        .actions .btn {
+            flex: 1;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-color, #666);
+            opacity: 0.6;
+        }
+        
+        .empty-state::before {
+            content: "📋";
+            display: block;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .add-filter {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px;
+            border: 2px dashed var(--border-color, #ddd);
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--accent-color, #0066cc);
+            transition: all 0.2s;
+        }
+        
+        .add-filter:hover {
+            background: rgba(74, 158, 255, 0.05);
+            border-color: var(--accent-color, #0066cc);
+        }
+    </style>
+</head>
+<body class="light-theme">
+    <div class="header">
+        <h1>Editar Filtros</h1>
+        <span class="pin-status" id="pinStatus">Flotante</span>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">Filtros Activos</div>
+        
+        <div class="filter-item">
+            <div class="filter-header">
+                <span class="filter-name">Año Fiscal</span>
+                <span class="filter-type">FISCYEAR</span>
+            </div>
+            <div class="filter-value">
+                <input type="text" value="2024" placeholder="Valor...">
+            </div>
+        </div>
+        
+        <div class="filter-item">
+            <div class="filter-header">
+                <span class="filter-name">Período</span>
+                <span class="filter-type">FISCPER</span>
+            </div>
+            <div class="filter-value">
+                <select>
+                    <option value="001">Enero</option>
+                    <option value="002">Febrero</option>
+                    <option value="003">Marzo</option>
+                    <option value="004">Abril</option>
+                    <option value="005">Mayo</option>
+                    <option value="006">Junio</option>
+                    <option value="007">Julio</option>
+                    <option value="008">Agosto</option>
+                    <option value="009">Septiembre</option>
+                    <option value="010">Octubre</option>
+                    <option value="011">Noviembre</option>
+                    <option value="012" selected>Diciembre</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="filter-item">
+            <div class="filter-header">
+                <span class="filter-name">Sociedad</span>
+                <span class="filter-type">COMP_CODE</span>
+            </div>
+            <div class="filter-value">
+                <input type="text" value="1000" placeholder="Código sociedad...">
+            </div>
+        </div>
+        
+        <div class="add-filter" onclick="addFilter()">
+            <span>+</span> Añadir Filtro
+        </div>
+    </div>
+    
+    <div class="actions">
+        <button class="btn btn-secondary" onclick="resetFilters()">Restablecer</button>
+        <button class="btn btn-primary" onclick="applyFilters()">Aplicar Filtros</button>
+    </div>
+
+    <script>
+        // Estado del panel
+        let isPinned = false;
+        
+        // Inicialización
+        window.Asc.plugin.init = function(data) {
+            console.log('[BIW Filters] Panel inicializado');
+            updatePinStatus();
+        };
+        
+        // Cambio de tema
+        window.Asc.plugin.onThemeChanged = function(theme) {
+            if (theme && theme.type) {
+                document.body.className = theme.type === 'dark' ? 'dark-theme' : 'light-theme';
+            }
+        };
+        
+        // Evento cuando cambia el estado de PIN
+        window.Asc.plugin.attachEvent("onDockedChanged", function(type) {
+            console.log('[BIW Filters] Docked changed:', type);
+            isPinned = (type === 'panel');
+            updatePinStatus();
+        });
+        
+        function updatePinStatus() {
+            const statusEl = document.getElementById('pinStatus');
+            if (isPinned) {
+                statusEl.textContent = '📌 Fijado';
+                statusEl.style.background = '#28a745';
+            } else {
+                statusEl.textContent = 'Flotante';
+                statusEl.style.background = '#6c757d';
+            }
+        }
+        
+        function addFilter() {
+            alert('Funcionalidad de añadir filtro próximamente');
+        }
+        
+        function resetFilters() {
+            console.log('[BIW Filters] Restablecer filtros');
+            // Enviar mensaje al plugin principal
+            window.Asc.plugin.sendToPlugin("resetFilters", {});
+        }
+        
+        function applyFilters() {
+            console.log('[BIW Filters] Aplicar filtros');
+            
+            // Recoger valores de filtros
+            const filters = {
+                fiscYear: document.querySelector('.filter-item:nth-child(1) input').value,
+                fiscPer: document.querySelector('.filter-item:nth-child(2) select').value,
+                compCode: document.querySelector('.filter-item:nth-child(3) input').value
+            };
+            
+            console.log('[BIW Filters] Filtros:', filters);
+            
+            // Enviar al plugin principal
+            window.Asc.plugin.sendToPlugin("applyFilters", filters);
+        }
+    </script>
+</body>
+</html>

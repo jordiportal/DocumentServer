@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Configuración BIW</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button.secondary {
+            background: #757575;
+        }
+    </style>
+</head>
+<body>
+    <h2>Configuración BIW</h2>
+    
+    <div class="form-group">
+        <label>Servidor BIW:</label>
+        <input type="text" id="server" value="localhost:3002" />
+    </div>
+    
+    <div class="form-group">
+        <label>Timeout (segundos):</label>
+        <input type="text" id="timeout" value="30" />
+    </div>
+    
+    <div class="form-group">
+        <label>Formato de fecha:</label>
+        <select id="dateFormat">
+            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+        </select>
+    </div>
+    
+    <div>
+        <button onclick="saveSettings()">Guardar</button>
+        <button class="secondary" onclick="closeWindow()">Cerrar</button>
+    </div>
+    
+    <p style="margin-top: 20px; color: green;" id="status"></p>
+    
+    <script>
+        console.log('[Settings v2.5.0] Página cargada');
+        
+        function saveSettings() {
+            var settings = {
+                server: document.getElementById('server').value,
+                timeout: document.getElementById('timeout').value,
+                dateFormat: document.getElementById('dateFormat').value
+            };
+            
+            console.log('[Settings] Guardando:', settings);
+            document.getElementById('status').textContent = 'Configuración guardada: ' + JSON.stringify(settings);
+            
+            // Intentar comunicar con el plugin padre
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'settings_saved',
+                        data: settings
+                    }, '*');
+                }
+            } catch(e) {
+                console.log('[Settings] No se pudo comunicar con padre:', e);
+            }
+        }
+        
+        function closeWindow() {
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'close_settings' }, '*');
+                }
+            } catch(e) {
+                console.log('[Settings] No se pudo cerrar:', e);
+            }
+        }
+    </script>
+</body>
+</html>
