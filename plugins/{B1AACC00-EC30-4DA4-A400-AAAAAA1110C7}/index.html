@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Brain for OnlyOffice</title>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css">
+    <link rel="stylesheet" href="styles/main.css">
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+</head>
+<body>
+    <div id="brain-panel">
+        <div id="status-bar">
+            <span id="status-indicator" class="connected"></span>
+            <span id="status-text">Conectado</span>
+            <button id="settings-btn" title="Ajustes">&#9881;</button>
+        </div>
+
+        <div id="settings-panel" style="display:none;">
+            <label>Brain URL:
+                <input id="setting-brain-url" type="text" placeholder="http://localhost:8000">
+            </label>
+            <label>API Key:
+                <input id="setting-api-key" type="password" placeholder="sk-brain-...">
+            </label>
+            <label>Model:
+                <input id="setting-model" type="text" placeholder="brain">
+            </label>
+            <button id="save-settings">Guardar</button>
+        </div>
+
+        <div id="messages"></div>
+
+        <div id="input-area">
+            <textarea id="user-input" placeholder="Pregunta a Brain sobre tus datos..." rows="2"></textarea>
+            <button id="send-btn">Enviar</button>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="scripts/brain-client.js"></script>
+    <script type="text/javascript" src="scripts/chat.js"></script>
+</body>
+</html>

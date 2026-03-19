@@ -1,0 +1,49 @@
+{
+    "name": "Brain for OnlyOffice",
+    "nameLocale": {
+        "es": "Brain para OnlyOffice",
+        "en": "Brain for OnlyOffice"
+    },
+    "guid": "asc.{B1AACC00-EC30-4DA4-A400-AAAAAA1110C7}",
+    "version": "1.0.0",
+
+    "variations": [
+        {
+            "description": "Background bridge — connects to Brain MCP server via WebSocket",
+            "descriptionLocale": {
+                "es": "Bridge de fondo — conecta con el servidor MCP de Brain por WebSocket",
+                "en": "Background bridge — connects to Brain MCP server via WebSocket"
+            },
+            "url": "background.html",
+            "icons": ["resources/icon.svg"],
+            "isViewer": true,
+            "EditorsSupport": ["cell", "word", "slide"],
+            "type": "background",
+            "isVisual": false,
+            "isModal": false,
+            "isInsideMode": false,
+            "initDataType": "none",
+            "initData": "",
+            "buttons": [],
+            "events": ["onToolbarMenuClick"]
+        },
+        {
+            "description": "Brain AI Assistant panel",
+            "descriptionLocale": {
+                "es": "Panel del asistente IA Brain",
+                "en": "Brain AI Assistant panel"
+            },
+            "url": "index.html",
+            "icons": ["resources/icon.svg"],
+            "isViewer": true,
+            "EditorsSupport": ["cell", "word", "slide"],
+            "isVisual": true,
+            "isModal": false,
+            "isInsideMode": true,
+            "initDataType": "none",
+            "initData": "",
+            "buttons": [],
+            "size": [400, 600]
+        }
+    ]
+}
