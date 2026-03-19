@@ -13,23 +13,28 @@ AddNumberedCrossRef
 AddSheet
 adSm
 afterCursor
+AlertStyle
 AllFontsGen
 allowPrivateIPAddressForSignedRequests
 altGr
 amd
 amqp
 Api
+ApiAutoFilter
 ApiBlockLvlSdt
 ApiBuilder
 ApiChart
+ApiColor
 ApiComment
 ApiCore
 ApiCustomProperties
 ApiDocument
 ApiDrawing
+ApiFilter
 ApiFormRoles
 ApiFreezePanes
 ApiGeometry
+ApiHyperlink
 ApiNotesPage
 ApiParagraph
 ApiPath
@@ -37,9 +42,13 @@ ApiPathCommand
 ApiPivotField
 ApiPivotFilters
 ApiPivotItem
+ApiPresentation
 ApiRange
+ApiShape
 ApiSlide
+ApiSlideShowTransition
 ApiTable
+ApiWorkbook
 ApiWorksheet
 api
 Appearance
@@ -47,12 +56,14 @@ ApplyChartStyle
 ApplyTheme
 ar
 ARRAYTOTEXT
+arrColors
 arrData
 Asana
 asc
 ASC
 ascii
 AscWord
+ASLR
 ashx
 aspose
 Aspose
@@ -91,6 +102,8 @@ BESSELK
 BESSELY
 BETADIST
 BETAINV
+bg
+bgColor
 binded
 BINOM
 BITAND
@@ -104,6 +117,7 @@ BMP
 bool
 boolean
 boundingBox
+bPercent
 br
 brower
 bucketName
@@ -115,6 +129,8 @@ callbackUrl
 Callout
 CanUpdateTarget
 CAs
+cbBufInCtlStm
+cce
 CDataStream
 CentOS
 cff
@@ -144,6 +160,7 @@ Cmd
 CNumberingLvlLegacy
 coedit
 CollaborationEditing
+colLast
 columnOffset
 columnSize
 ColumnWidth
@@ -176,6 +193,8 @@ COVARIANCE
 CPPTUserInfo
 createDecipheriv
 CreatePictureForm
+CreateStroke
+CRN
 crypted
 cryptographic
 CSC
@@ -222,11 +241,13 @@ Deutsch
 dev
 DGET
 dialogs
+dereference
 dir
 DirTree
 djvu
 DjVu
 DjVU
+dk
 DK
 DMAX
 DMS
@@ -246,6 +267,7 @@ Docx
 DOCX
 docxf
 DOCXF
+DOM
 DOTX
 double
 downloadAs
@@ -271,6 +293,7 @@ editorType
 ee
 endDate
 endnotes
+EntryEffect
 ePub
 EQ
 ERFC
@@ -288,7 +311,10 @@ extendSession
 fb
 FDB
 FDIST
+fgColor
 FI
+fieldId
+FilePass
 filePath
 fillForms
 FINV
@@ -309,6 +335,7 @@ forceWesternFontSize
 ForEach
 FormattedDiskPagePAPX
 formdata
+FormData
 FormPrBase
 formsdataurl
 formsubmit
@@ -341,9 +368,11 @@ GetColumnWidth
 GetCommentById
 GetCommentId
 GetCount
+GetCurrentAddinField
 GetCurrentContentControlPr
 GetCurrentSentence
 GetCurrentWord
+GetDrawingsByName
 GetEndNotesFirstParagraphs
 GetFontFamily
 GetFontNames
@@ -367,6 +396,8 @@ GetRange
 GetRightMargin
 GetRowHeight
 GetRows
+GetSelectedDrawings
+GetSelectedShapes
 GetSelection
 GetSheet
 GetSheets
@@ -391,9 +422,11 @@ hAnsi
 healthcheck
 healthCheck
 HEIF
+hexString
 hideContentControlTrack
 hideRightMenu
 HiDPI
+HLink
 HLOOKUP
 hotkey
 hotkeys
@@ -443,11 +476,14 @@ iPadOS
 ipfilter
 IsAutosave
 IsExitSave
+IsFormSigned
 ISFORMULA
 isForward
 IsModifiedByUser
 ISOWEEKNUM
+isReplace
 isSaveLock
+itabLast
 Italiano
 iterations
 ItextSharp
@@ -493,6 +529,7 @@ logrotate
 lookup
 lool
 LOOL
+lt
 LTR
 LTS
 macOS
@@ -503,6 +540,7 @@ mathType
 MathType
 maxChangesSize
 MAXIFS
+mb
 md
 Mendeley
 MergeArea
@@ -536,6 +574,7 @@ mysqlExtraOptions
 namespace
 NativeEngine
 natively
+nBottom
 Nederland
 Nederlands
 NEGBINOM
@@ -549,8 +588,11 @@ NodeJS
 nodeName
 NoHistory
 nonprinting
+nPercent
 npm
+nRight
 NSSW
+nTop
 nul
 num
 Num
@@ -616,6 +658,7 @@ ott
 owncloud
 oValue
 oxps
+nDistance
 nPage
 pageDown
 ParaDrawing
@@ -626,6 +669,7 @@ param
 params
 passsword
 PasswordToOpen
+patternType
 pathurl
 pdf
 PDFA
@@ -637,6 +681,7 @@ persistentStorage
 pgPoolExtraOptions
 PhotoEditor
 PHP
+pictFmla
 PIVOTCACHEDEFINITION
 PIVOTVIEW
 placholder
@@ -646,6 +691,7 @@ pluginsmanager
 png
 PNG
 pointerMode
+pos
 PostgreSql
 PostgreSQL
 postinst
@@ -680,6 +726,7 @@ RabbitMQ
 RANDARRAY
 rangeId
 rastr
+RCE
 ReadEmrTextBase
 ReadFromBinary
 ReadStandartEncryptionInfo
@@ -696,6 +743,10 @@ Refactor
 refactoring
 refreshFile
 regex
+REGEXEXTRACT
+REGEXREPLACE
+REGEXTEST
+RemoveAddinField
 ReplaceByElement
 ReplaceCurrentSentence
 ReplaceCurrentWord
@@ -709,6 +760,7 @@ resaving
 reseting
 resize
 resultMessage
+rgXTI
 rightMenu
 RowHeight
 rPrChange
@@ -727,6 +779,7 @@ Schweiz
 sCreator
 screenreader
 ScrollToAbsolutePosition
+sDash
 sDescription
 sdk
 sdkjs
@@ -735,6 +788,7 @@ SearchAndReplace
 SECH
 SecurityError
 secretAccessKey
+SelectAddinField
 SectionPropertiesMapping
 selectwheel
 SELinux
@@ -747,6 +801,7 @@ SetDataPointFill
 SetDataPointOutLine
 SetFreezePanesType
 SetHidden
+SetHorPosition
 SetLeftMargin
 SetLegendFill
 SetLegendOutLine
@@ -755,6 +810,7 @@ setMailMergeRecipients
 SetMarkerFill
 SetMarkerOutLine
 SetOffset
+SetPaddings
 SetPageOrientation
 SetPlotAreaFill
 SetPlotAreaOutLine
@@ -769,9 +825,11 @@ SetTitleFill
 SetTitleOutLine
 SetTopMargin
 setUsers
+SetVerPosition
 SetVisible
 SetWatermarkSettings
 sFormat
+ShapePropsStream
 sharded
 sharding
 shardkey
@@ -848,6 +906,7 @@ tablePr
 tabSelected
 TDIST
 TEXTAFTER
+textarea
 TextArt
 TEXTBEFORE
 TEXTJOIN
@@ -871,9 +930,11 @@ trackpad
 trendlines
 TRIMMEAN
 truetype
+TSV
 TTEST
 ttf
 TW
+tx
 txPr
 txt
 Typograf
@@ -887,6 +948,7 @@ ungrouping
 unhandled
 unix
 unLockDocument
+untrusted
 UpdateDefineNames
 updateversion
 UpdateXti

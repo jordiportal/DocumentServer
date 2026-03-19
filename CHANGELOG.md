@@ -1,5 +1,432 @@
 # Change log
 
+## 9.3.0
+
+### New features
+
+#### All Editors
+
+* Implemented the ability to add hyperlinks to images, shapes, or groups
+* Implemented all settings for texture fills for images
+* Updated macro recording in documents, spreadsheets, and presentations
+
+#### Document Editor
+
+* Added Multiple pages view
+* Added the Zoom to 100% and Multiple pages buttons to the View tab
+* Changed the appearance of comments. Now a user’s color is used and the
+  beginning and end of the comment are displayed
+* Implemented the ability to select words/paragraphs by double/triple-clicking
+  the mouse
+* Added saving to the `MD` format
+* Moved header and footer settings to a separate Header & Footer tab
+
+#### Spreadsheet Editor
+
+* Added support for new functions: `REGEXTEST`, `REGEXREPLACE`, `REGEXEXTRACT`
+* Improved work of the `COUNTIF` function
+* Added support for dynamic arrays
+* Added Solver for solving linear problems (Simplex LP)
+* Changed the color of the resolved comment indicator
+* Added the ability to select multiple separators when splitting text into
+  columns/pasting from the clipboard
+* Added the Format button, which combines various functions for working with
+  sheets/rows/columns
+* Added support for `TSV` files for reading
+
+#### Presentation Editor
+
+* Added support for GIF animations playback in the slideshow demonstration mode
+
+#### Forms
+
+* Added the signature settings window with the ability to draw and add text to
+  signatures
+* Added the ability to stretch fixed forms to fit the table cell size using the
+  context menu
+* Added the Protection tab, which duplicates the Protect functionality in the
+  File menu
+* Added saving to the `MD` format
+
+#### PDF Editor
+
+* Added version history
+* Added Multiple pages view
+* Added the Zoom to 100% and Multiple pages buttons to the View tab
+* Implemented a password prompt when enabling the Edit PDF mode if the file is
+  protected from editing
+* Added support for Link annotations with the ability to add them both to an
+  area and to text on a page
+* Added the ability to continue editing `PDF` using embedded fonts
+* Added the ability to redact text using the auxiliary pop-up toolbar
+* Added parameters for printing pages
+
+#### Security
+
+* Fixed several vulnerabilities with out-of-bounds read in `XLS`
+  processing/conversion (via `FilePass`, `HLink`, `rgXTI`.`itabLast`, `Formula`
+  record `cce`, `ShapePropsStream`, and `CRN`.`colLast` records/fields) leading
+  to information leak and `ASLR` bypass
+* Fixed vulnerabilities with untrusted pointer dereference in `XLS`
+  processing/conversion (via `pictFmla`.`cbBufInCtlStm` and other vectors)
+  leading to information leak and `ASLR` bypass
+* Fixed a DOM-based XSS vulnerability when executing a macro using dynamic
+  import() (CVE-2021-43446, CVE-2023-50883, CVE-2024-44085)
+
+#### Back-end
+
+* Added two open handlers for integrators:
+  `/meta/formats` - a list of formats for conversion in the json form
+  `/meta/config` - connection data (headers, addresses, file size limit)
+* Added caching to Service Worker with replacing the last three opened
+  documents. This speeds up reopening and allows caching of large files, which
+  the browser doesn't do
+* Added information pages for the example and admin-panel services that are not
+  running
+
+#### Customization
+
+* Changed the `permissions.copy` parameter of the config. Copying is now
+  prohibited not only to the external buffer, but also to the internal one. A
+  corresponding warning is displayed when opening the editor or attempting to
+  copy
+
+#### Mobile
+
+* Added highlighting of active arguments when entering a formula in the
+  Spreadsheet Editor
+
+#### API
+
+* Added methods for working with footnotes and endnotes
+
+``` javascript
+ApiDocument.prototype.GetCurrentFootEndnote = function()
+ApiDocumentContent.prototype.IsFootnote = function()
+ApiDocumentContent.prototype.IsEndnote = function()
+ApiDocumentContent.prototype.SelectNoteReference = function()
+```
+
+* Added plugin methods for working with add-in fields
+
+```javascript
+window.Asc.plugin.executeMethod("SelectAddinField", [fieldId]);
+window.Asc.plugin.executeMethod("RemoveAddinField", [fieldId]);
+```
+
+* Added a new `ApiColor` class for unified color handling and updated existing
+  methods.
+* Added methods for creating `ApiColor` instances
+
+```javascript
+Api.prototype.AutoColor = function()
+Api.prototype.RGB = function(r, g, b)
+Api.prototype.RGBA = function(r, g, b, a)
+Api.prototype.HexColor = function(hexString)
+Api.prototype.ThemeColor = function(name)
+```
+
+The following names are available for the theme color:
+`accent1, accent2, accent3, accent4, accent5, accent6, bg1, bg2, dk1, dk2, lt1,
+lt2, tx1, tx2`
+
+* Added methods for the `ApiColor` class
+
+```javascript
+ApiColor.prototype.GetClassType = function()
+ApiColor.prototype.IsAutoColor = function()
+ApiColor.prototype.IsThemeColor = function()
+ApiColor.prototype.GetRGB = function()
+ApiColor.prototype.GetRGBA = function()
+ApiColor.prototype.GetHex = function()
+ApiColor.prototype.GetThemeName = function()
+```
+
+* Updated methods for working with text, background, and border colors. Now they
+  accept/return `ApiColor` instances
+
+```javascript
+ApiRange.prototype.SetColor = function(color)
+ApiRange.prototype.SetShd = function(type, color)
+ApiDocument.prototype.SetFormsHighlight = function(color)
+ApiDocument.prototype.SetControlsHighlight = function(color)
+ApiParagraph.prototype.SetColor = function(color)
+ApiRun.prototype.SetColor = function(color)
+ApiRun.prototype.SetShd = function(type, color)
+ApiTable.prototype.SetBackgroundColor = function(color)
+ApiTableRow.prototype.SetBackgroundColor = function(color)
+ApiTableCell.prototype.SetBackgroundColor = function(color)
+ApiTableCell.prototype.GetBackgroundColor = function()
+ApiTableCell.prototype.SetColumnBackgroundColor = function(color)
+ApiTextPr.prototype.SetColor = function(color)
+ApiTextPr.prototype.GetColor = function()
+ApiTextPr.prototype.SetShd = function(type, color)
+ApiTextPr.prototype.GetShd = function(color)
+ApiParaPr.prototype.SetShd = function(type, color)
+ApiParaPr.prototype.GetShd = function(color)
+ApiInlineLvlSdt.prototype.SetBorderColor = function(color)
+ApiInlineLvlSdt.prototype.GetBorderColor = function()
+ApiInlineLvlSdt.prototype.SetBackgroundColor = function(color)
+ApiInlineLvlSdt.prototype.GetBackgroundColor = function()
+ApiFormBase.prototype.SetBorderColor = function(color)
+ApiFormBase.prototype.GetBorderColor = function()
+ApiFormBase.prototype.SetBackgroundColor = function(color)
+ApiFormBase.prototype.GetBackgroundColor = function()
+Api.prototype.CreateSolidFill = function(color)
+Api.prototype.CreatePatternFill = function(patternType, bgColor, fgColor)
+Api.prototype.CreateGradientStop = function(color, pos)
+Api.prototype.CreateThemeColorScheme = function(arrColors, sName)
+```
+
+* Added new methods for data validation in the Spreadsheet Editor
+
+```javascript
+ApiRange.prototype.GetValidation()
+ApiValidation.prototype.Add(Type, AlertStyle, Operator, Formula1, Formula2)
+ApiValidation.prototype.Delete()
+ApiValidation.prototype.Modify(Type, AlertStyle, Operator, Formula1, Formula2)
+ApiValidation.prototype.GetType()
+ApiValidation.prototype.SetType(Type)
+ApiValidation.prototype.GetAlertStyle()
+ApiValidation.prototype.SetAlertStyle(AlertStyle)
+ApiValidation.prototype.GetIgnoreBlank()
+ApiValidation.prototype.SetIgnoreBlank(IgnoreBlank)
+ApiValidation.prototype.GetInCellDropdown()
+ApiValidation.prototype.SetInCellDropdown(InCellDropdown)
+ApiValidation.prototype.GetShowInput()
+ApiValidation.prototype.SetShowInput(ShowInput)
+ApiValidation.prototype.GetShowError()
+ApiValidation.prototype.SetShowError(ShowError)
+ApiValidation.prototype.GetInputTitle()
+ApiValidation.prototype.SetInputTitle(InputTitle)
+ApiValidation.prototype.GetInputMessage()
+ApiValidation.prototype.SetInputMessage(InputMessage)
+ApiValidation.prototype.GetErrorTitle()
+ApiValidation.prototype.SetErrorTitle(ErrorTitle)
+ApiValidation.prototype.GetErrorMessage()
+ApiValidation.prototype.SetErrorMessage(ErrorMessage)
+ApiValidation.prototype.GetFormula1()
+ApiValidation.prototype.SetFormula1(Formula1)
+ApiValidation.prototype.GetFormula2()
+ApiValidation.prototype.SetFormula2(Formula2)
+ApiValidation.prototype.GetOperator()
+ApiValidation.prototype.SetOperator(Operator)
+ApiValidation.prototype.GetParent()
+```
+
+* Added new `ApiAutoFilter` and `ApiFilter` classes for unified work with sheet
+  autofilters and column filters in the Spreadsheet Editor API
+* Added methods for creating `ApiAutoFilter` instances
+
+```javascript
+ApiWorksheet.prototype.GetAutoFilter = function()
+```
+
+* Added methods of the `ApiAutoFilter` class
+
+```javascript
+ApiAutoFilter.prototype.GetFilters
+ApiAutoFilter.prototype.GetFilterMode
+ApiAutoFilter.prototype.GetParent
+ApiAutoFilter.prototype.GetRange
+ApiAutoFilter.prototype.ApplyFilter = function()
+ApiAutoFilter.prototype.ShowAllData = function()
+```
+
+* Added methods of the `ApiFilter` class
+
+```javascript
+ApiFilter.prototype.GetParent
+ApiFilter.prototype.GetCriteria1
+ApiFilter.prototype.GetCriteria2
+ApiFilter.prototype.GetOn
+ApiFilter.prototype.GetOperator
+```
+
+* Added a new `ApiSlideShowTransition` class for managing transitions between
+  slides and supporting hyperlinks to shapes/images
+* Added methods for creating and retrieving transitions
+
+```javascript
+Api.prototype.CreateSlideShowTransition = function()
+ApiSlide.prototype.GetSlideShowTransition = function()
+ApiSlide.prototype.SetSlideShowTransition = function(transition)
+```
+
+* Added methods of the `ApiSlideShowTransition` class for setting transition
+  effects
+
+```javascript
+ApiSlideShowTransition.prototype.GetEntryEffect = function()
+ApiSlideShowTransition.prototype.SetEntryEffect = function(effect: EntryEffect)
+```
+
+* Added methods of the `ApiSlideShowTransition` class for managing speed and
+  duration
+
+```javascript
+ApiSlideShowTransition.prototype.GetDuration = function()
+ApiSlideShowTransition.prototype.SetDuration = function(duration: number)
+ApiSlideShowTransition.prototype.GetSpeed = function()
+ApiSlideShowTransition.prototype.SetSpeed = function(speed: string)
+```
+
+* Added methods of the `ApiSlideShowTransition` class for managing
+  auto-transition
+
+```javascript
+ApiSlideShowTransition.prototype.GetAdvanceOnClick = function()
+ApiSlideShowTransition.prototype.SetAdvanceOnClick = function(value: bool)
+ApiSlideShowTransition.prototype.GetAdvanceOnTime = function()
+ApiSlideShowTransition.prototype.SetAdvanceOnTime = function(value: bool)
+ApiSlideShowTransition.prototype.GetAdvanceTime = function()
+ApiSlideShowTransition.prototype.SetAdvanceTime = function(time: number)
+```
+
+* Added methods for creating and setting hyperlinks using the new `ApiHyperlink`
+  class
+
+```javascript
+Api.prototype.CreateHyperlink = function(url, tooltip)
+ApiDrawing.prototype.SetHyperlink = function(hyperlink)
+```
+
+* Added methods for retrieving information about a shape's fill and stroke
+
+```javascript
+ApiShape.prototype.SetFill
+ApiShape.prototype.GetFill
+ApiShape.prototype.SetLine
+ApiShape.prototype.GetLine
+ApiFill.prototype.GetType
+ApiStroke.prototype.GetWidth
+ApiStroke.prototype.GetFill
+ApiStroke.prototype.GetDashType
+```
+
+* Added classes and methods for working with animation
+
+```javascript
+ApiSlide.prototype.GetTimeLine
+ApiTimeLine.prototype.GetClassType
+ApiTimeLine.prototype.GetMainSequence
+ApiTimeLine.prototype.GetInteractiveSequences
+ApiTimeLine.prototype.AddInteractiveSequence
+ApiTimeLine.prototype.GetAllEffects
+ApiAnimationSequence.prototype.GetClassType
+ApiAnimationSequence.prototype.GetCount
+ApiAnimationSequence.prototype.GetEffect
+ApiAnimationSequence.prototype.AddEffect
+ApiAnimationSequence.prototype.RemoveAllEffects
+ApiAnimationEffect.prototype.GetClassType
+ApiAnimationEffect.prototype.GetEffectType
+ApiAnimationEffect.prototype.GetTriggerType
+ApiAnimationEffect.prototype.SetTriggerType
+ApiAnimationEffect.prototype.GetDuration
+ApiAnimationEffect.prototype.SetDuration
+ApiAnimationEffect.prototype.GetDelay
+ApiAnimationEffect.prototype.SetDelay
+ApiAnimationEffect.prototype.GetShape
+ApiAnimationEffect.prototype.GetRepeatCount
+ApiAnimationEffect.prototype.SetRepeatCount
+ApiAnimationEffect.prototype.Delete
+ApiAnimationEffect.prototype.MoveTo
+```
+
+* Added plugin methods to check that the form is signed and to get the current
+  Add-in field for plugins like Zotero
+
+```javascript
+IsFormSigned
+GetCurrentAddinField
+```
+
+* Added methods for blocking the form from being changed (similar to the lock
+  button in the UI)
+
+```javascript
+ApiFormBase.prototype.SetLock(isLock)
+ApiFormBase.prototype.GetLock()
+```
+
+* The `FormData` object is extended with the following fields
+
+options — added for checkboxes, radio groups, drop-down lists, and combo boxes
+label — text label for checkboxes (if specified)
+format — format for date fields
+lang — language for date fields
+
+* Changed the `CreateStroke` method for `Api`classes – added the `sDash`
+  parameter
+
+```javascript
+Api.prototype.CreateStroke(width, fill, sDash)
+```
+
+* Added new methods for the `ApiDrawing` class
+
+```javascript
+ApiDrawing.prototype.GetFlipH()
+ApiDrawing.prototype.GetFlipV()
+ApiDrawing.prototype.SetFlipH
+ApiDrawing.prototype.SetFlipV
+ApiDrawing.prototype.Unselect()
+ApiDrawing.prototype.SetRelativeHeight(sRelativeFrom, nPercent)
+ApiDrawing.prototype.SetRelativeWidth(sRelativeFrom, nPercent)
+```
+
+* For the `ApiDrawing` class, changed the following methods: `Select` (added the
+  `isReplace` parameter), `SetHorPosition` (added the `bPercent` parameter),
+  `SetVerPosition` (added the `bPercent` parameter)
+
+```javascript
+ApiDrawing.prototype.Select(isReplace)
+ApiDrawing.prototype.SetHorPosition(sRelativeFrom, nDistance, bPercent)
+ApiDrawing.prototype.SetVerPosition(sRelativeFrom, nDistance, bPercent)
+ApiDrawing.prototype.Fill(oFill)
+ApiDrawing.prototype.SetOutLine(oStroke)
+ApiDrawing.prototype.Fill(oFill)
+ApiDrawing.prototype.SetOutLine(oStroke)
+```
+
+* Added the `GetDrawingsByName` method for the `ApiDocument`, `ApiWorkbook`, and
+  `ApiPresentation` classes
+
+```javascript
+ApiDocument.prototype.GetDrawingsByName(ids)
+ApiWorkbook.prototype.GetDrawingsByName(ids)
+ApiPresentation.prototype.GetDrawingsByName(ids)
+```
+
+* Added the `GetSelectedShapes`, `GetSelectedDrawings` methods for
+  the`ApiWorksheet` class
+
+```javascript
+ApiWorksheet.prototype.GetSelectedShapes()
+ApiWorksheet.prototype.GetSelectedDrawings()
+```
+
+* Added the `SetPaddings` method for the `ApiShape` class
+
+```javascript
+ApiShape.prototype.SetPaddings(nLeft, nTop, nRight, nBottom)
+```
+
+* Added a method to `ApiTable` to correctly set table proportions
+
+```javascript
+ApiTable.prototype.SetSize = function (width, height)
+```
+
+* Added a method to `ApiChart` to get the chart title
+
+```javascript
+ApiChart.prototype.GetTitle = function ()
+```
+
+* Added API for macros in the PDF Editor with the ability to add, delete and
+  edit pages, forms, annotations, autoshapes, tables, images, charts
+
 ## 9.2.1
 
 ### Fixes

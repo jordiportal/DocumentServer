@@ -1,4 +1,4 @@
-[![License](https://img.shields.io/badge/License-GNU%20AGPL%20V3-green.svg?style=flat)](https://www.gnu.org/licenses/agpl-3.0.en.html) ![Release](https://img.shields.io/badge/Release-v8.3.0-blue.svg?style=flat)
+[![License](https://img.shields.io/badge/License-GNU%20AGPL%20V3-green.svg?style=flat)](https://www.gnu.org/licenses/agpl-3.0.en.html) [![Release](https://img.shields.io/github/v/tag/ONLYOFFICE/DocumentServer?sort=semver&style=flat&label=Release&color=blue)](https://github.com/ONLYOFFICE/DocumentServer/tags)
 
 ## Welcome to the ONLYOFFICE Docs repo!
 
