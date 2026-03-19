@@ -1,115 +1,435 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configuración BIW</title>
+    <script type="text/javascript" src="./../v1/plugins.js"></script>
+    <script type="text/javascript" src="./../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="./../v1/plugins.css">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        h2 {
-            color: #333;
-            margin-top: 0;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        input[type="text"], select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+        /* === RESET Y BASE === */
+        html, body {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
         }
-        button {
-            background: #2196F3;
-            color: white;
-            border: none;
-            padding: 10px 20px;
+        *, *::before, *::after { box-sizing: border-box; }
+        
+        /* === TEMAS - Variables CSS === */
+        :root, body {
+            --body-bg: #fff;
+            --section-bg: #f5f5f5;
+            --border-color: #cfcfcf;
+            --text-primary: #444444;
+            --text-secondary: rgba(0,0,0,0.6);
+            --accent-color: #446995;
+            --accent-hover: #3a5a80;
+            --input-bg: #fff;
+            --input-border: #cfcfcf;
+            --success-color: #70ad47;
+            --error-color: #c00000;
+        }
+        
+        body.theme-dark,
+        body.theme-contrast-dark,
+        body.theme-type-dark,
+        body[class*="dark"] {
+            --body-bg: #333 !important;
+            --section-bg: #3d3d3d !important;
+            --border-color: #555 !important;
+            --text-primary: #e0e0e0 !important;
+            --text-secondary: rgba(255,255,255,0.6) !important;
+            --accent-color: #6a9fd4 !important;
+            --accent-hover: #5a8fc4 !important;
+            --input-bg: #2d2d2d !important;
+            --input-border: #555 !important;
+            --success-color: #90c46c !important;
+            --error-color: #ff6b6b !important;
+        }
+        
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            background-color: var(--body-bg);
+            background-color: var(--background-normal, var(--body-bg));
+            color: var(--text-primary);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* === LAYOUT === */
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 12px;
+        }
+        
+        .header {
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .header h1 {
+            font-size: 14px;
+            margin: 0;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+        .header .version {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        
+        /* === SECCIONES === */
+        .section {
+            background: var(--section-bg);
+            border-radius: 6px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+        }
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary) !important;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title .icon {
+            font-size: 14px;
+        }
+        
+        /* === FORMULARIO === */
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .form-group .hint {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 3px;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 11px;
+            border: 1px solid var(--input-border);
+            border-radius: 4px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            transition: border-color 0.2s;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        
+        select.form-control {
+            cursor: pointer;
+        }
+        
+        /* === BOTONES === */
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px 16px;
+            font-size: 11px;
+            font-weight: 500;
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             cursor: pointer;
-            margin-right: 10px;
+            transition: all 0.2s;
+            background: var(--section-bg);
+            color: var(--text-primary);
         }
-        button:hover {
-            background: #1976D2;
+        .btn:hover {
+            background: var(--border-color);
         }
-        button.secondary {
-            background: #757575;
+        .btn.primary {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: #fff;
+        }
+        .btn.primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+        
+        /* === STATUS === */
+        .status {
+            font-size: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            display: none;
+        }
+        .status.success {
+            display: block;
+            background: rgba(112, 173, 71, 0.15);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+        .status.error {
+            display: block;
+            background: rgba(192, 0, 0, 0.15);
+            color: var(--error-color);
+            border: 1px solid var(--error-color);
+        }
+        
+        /* === SWITCH === */
+        .switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .switch-row:last-child {
+            border-bottom: none;
+        }
+        .switch-label {
+            font-size: 11px;
+            color: var(--text-primary);
+        }
+        .switch-desc {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 2px;
         }
     </style>
 </head>
 <body>
-    <h2>Configuración BIW</h2>
-    
-    <div class="form-group">
-        <label>Servidor BIW:</label>
-        <input type="text" id="server" value="localhost:3002" />
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Configuración BIW</h1>
+            <div class="version">v3.9.12</div>
+        </div>
+        
+        <!-- Conexión -->
+        <div class="section">
+            <div class="section-title"><span class="icon">🔌</span> Conexión</div>
+            <div class="form-group">
+                <label>URL del Servidor</label>
+                <input type="text" id="serverUrl" class="form-control" placeholder="http://localhost:3001">
+                <div class="hint">Dirección del proxy BIW (incluir http:// o https://)</div>
+            </div>
+            <div class="form-group">
+                <label>Timeout (segundos)</label>
+                <input type="number" id="timeout" class="form-control" min="5" max="300" value="60">
+            </div>
+        </div>
+        
+        <!-- Formato de datos -->
+        <div class="section">
+            <div class="section-title"><span class="icon">📊</span> Formato de Datos</div>
+            <div class="form-group">
+                <label>Formato Numérico</label>
+                <select id="numberFormat" class="form-control">
+                    <option value="EU">🇪🇺 Europeo (1.234,56)</option>
+                    <option value="US">🇺🇸 Americano (1,234.56)</option>
+                </select>
+                <div class="hint">Separadores de miles y decimales</div>
+            </div>
+            <div class="form-group">
+                <label>Formato de Fecha</label>
+                <select id="dateFormat" class="form-control">
+                    <option value="DD/MM/YYYY">DD/MM/YYYY (31/12/2024)</option>
+                    <option value="YYYY-MM-DD">YYYY-MM-DD (2024-12-31)</option>
+                    <option value="MM/DD/YYYY">MM/DD/YYYY (12/31/2024)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Decimales por defecto</label>
+                <select id="decimals" class="form-control">
+                    <option value="0">Sin decimales (1.234)</option>
+                    <option value="2" selected>2 decimales (1.234,56)</option>
+                    <option value="4">4 decimales (1.234,5678)</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Visualización -->
+        <div class="section">
+            <div class="section-title"><span class="icon">🎨</span> Visualización</div>
+            <div class="switch-row">
+                <div>
+                    <div class="switch-label">Filas alternadas</div>
+                    <div class="switch-desc">Colorear filas pares/impares</div>
+                </div>
+                <input type="checkbox" id="alternateRows" checked>
+            </div>
+            <div class="switch-row">
+                <div>
+                    <div class="switch-label">Indicadores de jerarquía</div>
+                    <div class="switch-desc">Mostrar ▶ en ratios expandibles</div>
+                </div>
+                <input type="checkbox" id="hierarchyIndicators" checked>
+            </div>
+            <div class="switch-row">
+                <div>
+                    <div class="switch-label">Auto-ajustar columnas</div>
+                    <div class="switch-desc">Ajustar ancho de columnas al contenido</div>
+                </div>
+                <input type="checkbox" id="autoFitColumns">
+            </div>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="btn-row">
+            <button class="btn" id="btnReset">🔄 Restaurar</button>
+            <button class="btn primary" id="btnSave">💾 Guardar</button>
+        </div>
     </div>
-    
-    <div class="form-group">
-        <label>Timeout (segundos):</label>
-        <input type="text" id="timeout" value="30" />
-    </div>
-    
-    <div class="form-group">
-        <label>Formato de fecha:</label>
-        <select id="dateFormat">
-            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-        </select>
-    </div>
-    
-    <div>
-        <button onclick="saveSettings()">Guardar</button>
-        <button class="secondary" onclick="closeWindow()">Cerrar</button>
-    </div>
-    
-    <p style="margin-top: 20px; color: green;" id="status"></p>
     
     <script>
-        console.log('[Settings v2.5.0] Página cargada');
-        
-        function saveSettings() {
-            var settings = {
-                server: document.getElementById('server').value,
-                timeout: document.getElementById('timeout').value,
-                dateFormat: document.getElementById('dateFormat').value
+        // Theme handler
+        function updateBodyThemeClasses(themeType, themeName) {
+            var classes = document.body.className.split(' ');
+            classes.forEach(function(className) {
+                if (className.indexOf('theme-') !== -1) {
+                    document.body.classList.remove(className);
+                }
+            });
+            themeName && document.body.classList.add(themeName);
+            themeType && document.body.classList.add('theme-type-' + themeType);
+        }
+
+        (function() {
+            'use strict';
+            
+            const CONFIG_KEY = 'biw_config';
+            
+            const defaults = {
+                serverUrl: 'http://localhost:3001',
+                timeout: 60,
+                numberFormat: 'EU',
+                dateFormat: 'DD/MM/YYYY',
+                decimals: '2',
+                alternateRows: true,
+                hierarchyIndicators: true,
+                autoFitColumns: false
             };
             
-            console.log('[Settings] Guardando:', settings);
-            document.getElementById('status').textContent = 'Configuración guardada: ' + JSON.stringify(settings);
+            const $ = id => document.getElementById(id);
             
-            // Intentar comunicar con el plugin padre
-            try {
-                if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({
-                        type: 'settings_saved',
-                        data: settings
-                    }, '*');
+            // Cargar configuración
+            function loadConfig() {
+                try {
+                    const saved = localStorage.getItem(CONFIG_KEY);
+                    const config = saved ? JSON.parse(saved) : {};
+                    return { ...defaults, ...config };
+                } catch(e) {
+                    return defaults;
                 }
-            } catch(e) {
-                console.log('[Settings] No se pudo comunicar con padre:', e);
             }
-        }
-        
-        function closeWindow() {
-            try {
-                if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'close_settings' }, '*');
+            
+            // Guardar configuración
+            function saveConfig() {
+                const config = {
+                    serverUrl: $('serverUrl').value || defaults.serverUrl,
+                    timeout: parseInt($('timeout').value) || defaults.timeout,
+                    numberFormat: $('numberFormat').value,
+                    dateFormat: $('dateFormat').value,
+                    decimals: $('decimals').value,
+                    alternateRows: $('alternateRows').checked,
+                    hierarchyIndicators: $('hierarchyIndicators').checked,
+                    autoFitColumns: $('autoFitColumns').checked
+                };
+                
+                try {
+                    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+                    // También guardar individualmente para compatibilidad
+                    localStorage.setItem('biw_number_format', config.numberFormat);
+                    localStorage.setItem('biw_server_url', config.serverUrl);
+                    
+                    showStatus('✓ Configuración guardada', 'success');
+                    
+                    // Notificar al plugin principal
+                    if (window.Asc && window.Asc.plugin) {
+                        window.Asc.plugin.sendToPlugin('onConfigSaved', config);
+                    }
+                } catch(e) {
+                    showStatus('Error al guardar: ' + e.message, 'error');
                 }
-            } catch(e) {
-                console.log('[Settings] No se pudo cerrar:', e);
             }
-        }
+            
+            // Aplicar configuración a la UI
+            function applyConfigToUI(config) {
+                $('serverUrl').value = config.serverUrl;
+                $('timeout').value = config.timeout;
+                $('numberFormat').value = config.numberFormat;
+                $('dateFormat').value = config.dateFormat;
+                $('decimals').value = config.decimals;
+                $('alternateRows').checked = config.alternateRows;
+                $('hierarchyIndicators').checked = config.hierarchyIndicators;
+                $('autoFitColumns').checked = config.autoFitColumns;
+            }
+            
+            // Restaurar valores por defecto
+            function resetToDefaults() {
+                applyConfigToUI(defaults);
+                showStatus('Valores restaurados (no guardados)', 'success');
+            }
+            
+            // Mostrar estado
+            function showStatus(msg, type) {
+                const status = $('status');
+                status.textContent = msg;
+                status.className = 'status ' + type;
+                setTimeout(() => {
+                    status.className = 'status';
+                }, 3000);
+            }
+            
+            // Inicialización
+            document.addEventListener('DOMContentLoaded', function() {
+                const config = loadConfig();
+                applyConfigToUI(config);
+                
+                $('btnSave').addEventListener('click', saveConfig);
+                $('btnReset').addEventListener('click', resetToDefaults);
+            });
+            
+            // Plugin init
+            if (window.Asc && window.Asc.plugin) {
+                window.Asc.plugin.init = function() {
+                    const config = loadConfig();
+                    applyConfigToUI(config);
+                };
+                
+                window.Asc.plugin.onThemeChanged = function(theme) {
+                    if (theme) {
+                        updateBodyThemeClasses(theme.type, theme.name);
+                    }
+                };
+            }
+        })();
     </script>
 </body>
 </html>

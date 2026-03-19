@@ -1,0 +1,32 @@
+{
+    "name": "BIW Charts",
+    "nameLocale": {
+        "es": "Gráficos BIW",
+        "en": "BIW Charts"
+    },
+    "guid": "asc.{B1AACC00-EC30-4DA4-A400-AAAAAA1110C6}",
+    "version": "1.0.1",
+
+    "variations": [
+        {
+            "description": "Create charts from SAP BW data",
+            "descriptionLocale": {
+                "es": "Crear gráficos desde datos SAP BW",
+                "en": "Create charts from SAP BW data"
+            },
+            "url": "index.html",
+            "icons": ["resources/icon.svg"],
+            "isViewer": true,
+            "EditorsSupport": ["slide"],
+            "isVisual": true,
+            "isModal": false,
+            "isInsideMode": true,
+            "initDataType": "none",
+            "initData": "",
+            "buttons": [
+                { "text": "Cerrar", "primary": false }
+            ],
+            "size": [380, 650]
+        }
+    ]
+}

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIW Charts</title>
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="../v1/plugins.css">
+    <link rel="stylesheet" href="styles/main.css">
+    <!-- Chart.js for preview -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 BIW Charts</h1>
+        <div class="subtitle">Gráficos desde SAP BW</div>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-indicator" id="statusIndicator"></div>
+        <span id="statusText">Conectando...</span>
+    </div>
+
+    <!-- Sección: Conexión -->
+    <div class="section">
+        <div class="section-header">🔗 Conexión</div>
+        <div class="section-content">
+            <div class="form-group">
+                <label>Servidor BIW:</label>
+                <input type="text" id="serverUrl" value="http://localhost:3001">
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección: Query -->
+    <div class="section">
+        <div class="section-header">📋 Query BW</div>
+        <div class="section-content">
+            <div class="form-group">
+                <label>Seleccionar Query:</label>
+                <select id="querySelect">
+                    <option value="">Cargando...</option>
+                </select>
+            </div>
+            <button class="btn btn-secondary" id="btnLoadData">
+                🔄 Cargar Datos
+            </button>
+        </div>
+    </div>
+
+    <!-- Sección: Tipo de Gráfico -->
+    <div class="section">
+        <div class="section-header">📈 Tipo de Gráfico</div>
+        <div class="section-content">
+            <div class="chart-types" id="chartTypes">
+                <button class="chart-type-btn active" data-type="bar">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="8"/><rect x="10" y="8" width="4" height="12"/><rect x="16" y="4" width="4" height="16"/></svg>
+                    Columnas
+                </button>
+                <button class="chart-type-btn" data-type="line">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,18 9,12 14,15 20,6"/></svg>
+                    Líneas
+                </button>
+                <button class="chart-type-btn" data-type="pie">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12,2 A10,10 0 1,1 2,12 L12,12 Z"/><path d="M12,2 L12,12 L22,12 A10,10 0 0,0 12,2" fill="#666"/></svg>
+                    Circular
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección: Configuración -->
+    <div class="section">
+        <div class="section-header">⚙️ Configuración</div>
+        <div class="section-content">
+            <div class="form-group">
+                <label>Dimensión (Categorías):</label>
+                <select id="dimensionSelect">
+                    <option value="">Seleccionar...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Métricas (Series):</label>
+                <div id="metricsContainer" style="max-height: 100px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 3px; padding: 6px;">
+                    <span style="color: var(--text-muted); font-size: 10px;">Carga datos primero</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección: Vista Previa -->
+    <div class="section">
+        <div class="section-header">👁️ Vista Previa</div>
+        <div class="section-content">
+            <div class="chart-preview" id="chartPreview">
+                <canvas id="previewCanvas"></canvas>
+            </div>
+            <div style="display: flex; gap: 6px;">
+                <button class="btn btn-secondary" id="btnRefreshPreview" style="flex:1" disabled>
+                    🔄 Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón Insertar -->
+    <button class="btn btn-primary" id="btnInsert" disabled>
+        ⬇️ Insertar Gráfico en Slide
+    </button>
+
+    <div class="footer">BIW Charts v1.0.0</div>
+
+    <!-- Loader -->
+    <div class="loader-overlay hidden" id="loader">
+        <div class="loader-spinner"></div>
+        <div class="loader-text" id="loaderText">Cargando...</div>
+    </div>
+
+    <script type="text/javascript" src="scripts/chart-panel.js"></script>
+</body>
+</html>

@@ -192,6 +192,20 @@
             border-radius: 3px;
             margin-left: 3px;
         }
+        /* Chip especial para Ratios/Measures */
+        .dim-chip.measures-chip {
+            background: linear-gradient(135deg, #6a5acd 0%, #483d8b 100%);
+            border-color: #6a5acd;
+            color: #fff !important;
+            font-weight: 600;
+        }
+        .dim-chip.measures-chip:hover {
+            background: linear-gradient(135deg, #7b6bdd 0%, #5a4d9b 100%);
+        }
+        .dim-chip.measures-chip.selected {
+            background: linear-gradient(135deg, #8a7ade 0%, #6a5acd 100%);
+            box-shadow: 0 0 0 2px rgba(106, 90, 205, 0.3);
+        }
         
         /* === BOTONES DE MOVIMIENTO === */
         .move-btns {
@@ -235,10 +249,13 @@
             border-radius: 3px;
             cursor: pointer;
             white-space: nowrap;
-            max-width: 100px;
+            max-width: 120px;
             overflow: hidden;
             text-overflow: ellipsis;
             color: var(--text-primary) !important;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
         }
         .metric-chip.selected {
             background-color: var(--chip-selected-bg);
@@ -246,6 +263,20 @@
             color: var(--text-primary) !important;
         }
         .metric-chip:hover { border-color: var(--accent-color); }
+        .metric-chip.expandable { font-weight: 600; }
+        .metric-chip.expandable .expand-icon { 
+            font-size: 8px; 
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .metric-chip.expandable.expanded .expand-icon { transform: rotate(90deg); }
+        .metric-chip.child { 
+            margin-left: 12px; 
+            font-size: 8px;
+            opacity: 0.9;
+            border-style: dashed;
+        }
+        .metric-chip.child.hidden { display: none; }
         
         /* === FILTROS ACTIVOS === */
         .filters-section {
@@ -507,6 +538,8 @@
                 <button class="btn-text-default quick-btn" id="btnSelectAll">✓ Todas</button>
                 <button class="btn-text-default quick-btn" id="btnSelectNone">✗ Ninguna</button>
                 <button class="btn-text-default quick-btn" id="btnSelectMain">★ Principales</button>
+                <button class="btn-text-default quick-btn" id="btnExpandAll" title="Expandir jerarquías">▼</button>
+                <button class="btn-text-default quick-btn" id="btnCollapseAll" title="Contraer jerarquías">▲</button>
             </div>
             <div class="metrics-container" id="metricsZone" style="flex: 1;"></div>
         </div>
@@ -587,6 +620,10 @@
             let selectedDimZone = null;
             let activeFilters = {};
             
+            // Jerarquía de ratios
+            let ratioHierarchy = {};  // { uid: { parentUid, level, expandable, children: [] } }
+            let expandedRatios = new Set();  // UIDs de ratios expandidos
+            
             let modalDimension = null;
             let modalValues = [];
             let modalSelectedValues = new Set();
@@ -654,18 +691,59 @@
                 currentQuery = queryName;
                 
                 try {
-                    const res = await fetch(SERVER_URL + '/api/bw-query/execute', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ queryName })
-                    });
+                    // Cargar datos de la query y jerarquía en paralelo
+                    const [queryRes, hierarchyRes] = await Promise.all([
+                        fetch(SERVER_URL + '/api/bw-query/execute', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ queryName })
+                        }),
+                        fetch(SERVER_URL + '/api/bw-query/ratio-hierarchy/' + queryName)
+                            .catch(() => ({ ok: false }))  // Ignorar error si no existe
+                    ]);
                     
-                    if (!res.ok) throw new Error('Error cargando');
-                    const data = await res.json();
+                    if (!queryRes.ok) throw new Error('Error cargando');
+                    const data = await queryRes.json();
+                    
+                    // Procesar jerarquía de ratios
+                    ratioHierarchy = {};
+                    expandedRatios = new Set();
+                    
+                    if (hierarchyRes.ok) {
+                        const hierData = await hierarchyRes.json();
+                        if (hierData.hierarchy) {
+                            hierData.hierarchy.forEach(h => {
+                                ratioHierarchy[h.uid] = {
+                                    parentUid: h.parent_uid || null,
+                                    level: h.level || 0,
+                                    expandable: h.expandable === 1 || h.hasChildren,
+                                    caption: h.caption,
+                                    childCount: h.childCount || 0,
+                                    children: []
+                                };
+                            });
+                            // Asignar hijos a padres
+                            Object.keys(ratioHierarchy).forEach(uid => {
+                                const parentUid = ratioHierarchy[uid].parentUid;
+                                if (parentUid && ratioHierarchy[parentUid]) {
+                                    ratioHierarchy[parentUid].children.push(uid);
+                                }
+                            });
+                        }
+                    }
                     
                     const dims = data.dimensions || {};
                     dimensions.rows = [...(dims.rows || [])];
                     dimensions.columns = (dims.columns || []).filter(d => d.type !== '0');
+                    
+                    // Añadir chip especial "Ratios" (Measures) - por defecto en columnas al inicio
+                    const measuresChip = { 
+                        name: 'Measures', 
+                        caption: '📊 Ratios', 
+                        type: 'measures',
+                        isMeasures: true 
+                    };
+                    dimensions.columns.unshift(measuresChip);
                     
                     const usedNames = new Set([
                         ...dimensions.rows.map(d => d.name),
@@ -680,10 +758,14 @@
                         caption: col.caption
                     }));
                     
+                    // Por defecto seleccionar solo métricas principales (level 0, no hijos)
                     selectedMetrics = new Set(
                         allMetrics
-                            .filter(m => !m.caption.startsWith('    '))
-                            .slice(0, 15)
+                            .filter(m => {
+                                const hier = ratioHierarchy[m.uid];
+                                return !hier || hier.level === 0;
+                            })
+                            .slice(0, 20)
                             .map(m => m.uid)
                     );
                     
@@ -693,7 +775,9 @@
                     
                     renderAll();
                     hideLoader();
-                    setStatus(`${allMetrics.length} métricas disponibles`);
+                    
+                    const expandableCount = Object.values(ratioHierarchy).filter(h => h.expandable).length;
+                    setStatus(`${allMetrics.length} métricas (${expandableCount} expandibles)`);
                     btnApply.disabled = false;
                     
                 } catch (e) {
@@ -718,11 +802,16 @@
                 } else {
                     zone.innerHTML = items.map(d => {
                         const isSelected = selectedDim === d.name && selectedDimZone === zoneName;
-                        const hasFilter = activeFilters[d.name];
+                        const isMeasures = d.isMeasures || d.name === 'Measures';
+                        const hasFilter = !isMeasures && activeFilters[d.name];
                         const filterCount = hasFilter ? hasFilter.values.length : 0;
-                        return `<div class="dim-chip ${isSelected ? 'selected' : ''} ${hasFilter ? 'filtered' : ''}" 
-                             data-name="${d.name}" data-zone="${zoneName}"
-                             title="${d.caption} (${d.name})${hasFilter ? ' - ' + filterCount + ' filtros' : ''}">
+                        
+                        // Estilo especial para el chip de Ratios (Measures)
+                        const specialClass = isMeasures ? 'measures-chip' : '';
+                        
+                        return `<div class="dim-chip ${isSelected ? 'selected' : ''} ${hasFilter ? 'filtered' : ''} ${specialClass}" 
+                             data-name="${d.name}" data-zone="${zoneName}" data-measures="${isMeasures}"
+                             title="${isMeasures ? 'Arrastra para cambiar posición de los ratios' : d.caption + ' (' + d.name + ')'}${hasFilter ? ' - ' + filterCount + ' filtros' : ''}">
                             ${d.caption}
                             ${hasFilter ? `<span class="filter-badge">${filterCount}</span>` : ''}
                         </div>`;
@@ -818,6 +907,12 @@
                 const dim = allDims.find(d => d.name === selectedDim);
                 if (!dim) return;
                 
+                // No permitir filtrar el chip de Measures
+                if (dim.isMeasures || dim.name === 'Measures') {
+                    setStatus('Los ratios se filtran desde la sección de métricas', 'info');
+                    return;
+                }
+                
                 modalDimension = dim;
                 modalTitle.textContent = `Filtrar: ${dim.caption}`;
                 modalValuesDiv.innerHTML = '<div class="modal-loading">Cargando valores...</div>';
@@ -899,15 +994,38 @@
                     return;
                 }
                 
-                metricsZone.innerHTML = allMetrics.map(m => `
-                    <div class="metric-chip ${selectedMetrics.has(m.uid) ? 'selected' : ''}" 
-                         data-uid="${m.uid}" title="${m.caption}">
-                        ${m.caption}
-                    </div>
-                `).join('');
+                metricsZone.innerHTML = allMetrics.map(m => {
+                    const hier = ratioHierarchy[m.uid];
+                    const isExpandable = hier && hier.expandable;
+                    const isChild = hier && hier.parentUid;
+                    const isExpanded = expandedRatios.has(m.uid);
+                    const parentExpanded = isChild ? expandedRatios.has(hier.parentUid) : true;
+                    
+                    let classes = 'metric-chip';
+                    if (selectedMetrics.has(m.uid)) classes += ' selected';
+                    if (isExpandable) classes += ' expandable';
+                    if (isExpanded) classes += ' expanded';
+                    if (isChild) classes += ' child';
+                    if (isChild && !parentExpanded) classes += ' hidden';
+                    
+                    const expandIcon = isExpandable ? `<span class="expand-icon" data-expand="${m.uid}">▶</span>` : '';
+                    const childCount = isExpandable && hier.childCount ? `<span style="font-size:7px;opacity:0.7">(${hier.childCount})</span>` : '';
+                    
+                    return `
+                        <div class="${classes}" data-uid="${m.uid}" title="${m.caption}">
+                            ${expandIcon}
+                            <span class="metric-label">${m.caption}</span>
+                            ${childCount}
+                        </div>
+                    `;
+                }).join('');
                 
+                // Event listeners para selección
                 metricsZone.querySelectorAll('.metric-chip').forEach(chip => {
-                    chip.addEventListener('click', () => {
+                    chip.addEventListener('click', (e) => {
+                        // Si hace clic en el icono de expandir, no seleccionar
+                        if (e.target.classList.contains('expand-icon')) return;
+                        
                         const uid = chip.dataset.uid;
                         if (selectedMetrics.has(uid)) {
                             selectedMetrics.delete(uid);
@@ -916,6 +1034,15 @@
                         }
                         chip.classList.toggle('selected');
                         updateCounts();
+                    });
+                });
+                
+                // Event listeners para expandir/contraer
+                metricsZone.querySelectorAll('.expand-icon').forEach(icon => {
+                    icon.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const uid = icon.dataset.expand;
+                        toggleExpand(uid);
                     });
                 });
             }
@@ -927,10 +1054,66 @@
                 $('metricCount').textContent = selectedMetrics.size + '/' + allMetrics.length;
             }
             
+            /**
+             * Expande o contrae un ratio padre
+             * Al expandir, muestra los hijos
+             * Al contraer, oculta los hijos
+             */
+            function toggleExpand(uid) {
+                const hier = ratioHierarchy[uid];
+                if (!hier || !hier.expandable) return;
+                
+                if (expandedRatios.has(uid)) {
+                    // Contraer: ocultar hijos
+                    expandedRatios.delete(uid);
+                    // Opcionalmente deseleccionar hijos
+                    hier.children.forEach(childUid => {
+                        selectedMetrics.delete(childUid);
+                    });
+                } else {
+                    // Expandir: mostrar hijos
+                    expandedRatios.add(uid);
+                    // Opcionalmente seleccionar el padre
+                    selectedMetrics.add(uid);
+                }
+                
+                renderMetrics();
+                updateCounts();
+            }
+            
+            /**
+             * Expande todos los ratios expandibles
+             */
+            function expandAllRatios() {
+                Object.keys(ratioHierarchy).forEach(uid => {
+                    if (ratioHierarchy[uid].expandable) {
+                        expandedRatios.add(uid);
+                    }
+                });
+                renderMetrics();
+            }
+            
+            /**
+             * Contrae todos los ratios
+             */
+            function collapseAllRatios() {
+                expandedRatios.clear();
+                // Deseleccionar todos los hijos
+                Object.keys(ratioHierarchy).forEach(uid => {
+                    if (ratioHierarchy[uid].parentUid) {
+                        selectedMetrics.delete(uid);
+                    }
+                });
+                renderMetrics();
+                updateCounts();
+            }
+            
             function resetState() {
                 dimensions = { rows: [], columns: [], available: [] };
                 allMetrics = [];
                 selectedMetrics = new Set();
+                ratioHierarchy = {};
+                expandedRatios = new Set();
                 selectedDim = null;
                 selectedDimZone = null;
                 activeFilters = {};
@@ -950,12 +1133,25 @@
                     values: f.values.map(v => v.key)
                 }));
                 
+                // Determinar posición de Measures
+                const measuresInRows = dimensions.rows.some(d => d.isMeasures || d.name === 'Measures');
+                const measuresInCols = dimensions.columns.some(d => d.isMeasures || d.name === 'Measures');
+                const measuresPosition = measuresInRows 
+                    ? dimensions.rows.findIndex(d => d.isMeasures || d.name === 'Measures')
+                    : dimensions.columns.findIndex(d => d.isMeasures || d.name === 'Measures');
+                
+                // Filtrar Measures de las dimensiones
+                const rowDimsFiltered = dimensions.rows.filter(d => !d.isMeasures && d.name !== 'Measures').map(d => d.name);
+                const colDimsFiltered = dimensions.columns.filter(d => !d.isMeasures && d.name !== 'Measures').map(d => d.name);
+                
                 const config = {
                     queryName: currentQuery,
-                    rowDimensions: dimensions.rows.map(d => d.name),
-                    columnDimensions: dimensions.columns.map(d => d.name),
+                    rowDimensions: rowDimsFiltered,
+                    columnDimensions: colDimsFiltered,
                     selectedKeyFigures: Array.from(selectedMetrics),
-                    filters: filtersArray
+                    filters: filtersArray,
+                    measuresOnRows: measuresInRows,
+                    measuresPosition: measuresPosition  // Posición de Measures en su eje (0 = primero)
                 };
                 
                 try {
@@ -981,9 +1177,18 @@
                     localStorage.setItem('biw_query_config', JSON.stringify(config));
                     
                     if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
+                        // Obtener formato numérico de la configuración global
+                        const numFormat = localStorage.getItem('biw_number_format') || 'EU';
+                        
                         window.Asc.plugin.sendToPlugin('onInsertData', {
-                            query: { name: currentQuery },
-                            rows: rows
+                            query: { 
+                                name: currentQuery,
+                                selectedKeyFigures: Array.from(selectedMetrics)
+                            },
+                            rows: rows,
+                            columns: result.columns || [],
+                            multiLevelHeaders: result.multiLevelHeaders || null,
+                            numberFormat: numFormat
                         });
                     }
                     
@@ -1010,13 +1215,26 @@
             });
             
             $('btnSelectMain').addEventListener('click', () => {
+                // Seleccionar solo métricas principales (level 0, sin padres)
                 selectedMetrics = new Set(
                     allMetrics
-                        .filter(m => !m.caption.startsWith('    ') && !m.caption.startsWith('%') && !m.caption.startsWith('('))
+                        .filter(m => {
+                            const hier = ratioHierarchy[m.uid];
+                            const isChild = hier && hier.parentUid;
+                            return !isChild && !m.caption.startsWith('%') && !m.caption.startsWith('(');
+                        })
                         .map(m => m.uid)
                 );
                 renderMetrics();
                 updateCounts();
+            });
+            
+            $('btnExpandAll').addEventListener('click', () => {
+                expandAllRatios();
+            });
+            
+            $('btnCollapseAll').addEventListener('click', () => {
+                collapseAllRatios();
             });
             
             // Move & filter buttons

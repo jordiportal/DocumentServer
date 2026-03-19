@@ -8,141 +8,263 @@
     <script type="text/javascript" src="./../v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="./../v1/plugins.css">
     <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e8e8e8;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #d9d9d9;
+            --accent-color: #446893;
+            --accent-hover: #365a80;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+            --warning-color: #ff9800;
+            --header-bg: linear-gradient(135deg, #446893 0%, #2d5a87 100%);
+        }
+        
+        /* Dark theme overrides */
+        body.theme-dark, body.theme-contrast-dark, body.theme-type-dark, body[class*="dark"] {
+            --bg-primary: #2a2a2a;
+            --bg-secondary: #333333;
+            --bg-tertiary: #3d3d3d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --text-muted: #808080;
+            --border-color: #4a4a4a;
+            --accent-color: #5a8ac0;
+            --accent-hover: #6a9ad0;
+            --header-bg: linear-gradient(135deg, #3a5a7c 0%, #2a4a6c 100%);
+        }
+        
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-            color: #fff;
-            padding: 15px;
+            font-size: 11px;
+            background-color: var(--background-normal, var(--bg-primary));
+            color: var(--text-normal, var(--text-primary));
+            padding: 12px;
             min-height: 100vh;
         }
-        .header { text-align: center; margin-bottom: 12px; }
-        .header h1 { font-size: 1.2em; margin-bottom: 3px; }
-        .header .subtitle { font-size: 0.75em; opacity: 0.8; }
-        .status-bar {
-            background: rgba(255,255,255,0.1);
+        
+        .header {
+            background: var(--header-bg);
             border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            text-align: center;
+            color: #fff;
+        }
+        .header h1 { font-size: 14px; margin-bottom: 2px; font-weight: 600; }
+        .header .subtitle { font-size: 10px; opacity: 0.85; }
+        
+        .status-bar {
+            background: var(--background-toolbar, var(--bg-secondary));
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 4px;
             padding: 8px 10px;
             margin-bottom: 10px;
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 0.85em;
         }
         .status-indicator {
             width: 8px; height: 8px;
             border-radius: 50%;
-            background: #ffc107;
+            background: var(--warning-color);
             animation: pulse 1.5s infinite;
         }
-        .status-indicator.connected { background: #4caf50; animation: none; }
-        .status-indicator.error { background: #f44336; animation: none; }
+        .status-indicator.connected { background: var(--success-color); animation: none; }
+        .status-indicator.error { background: var(--error-color); animation: none; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
         .form-group { margin-bottom: 10px; }
-        .form-group label { display: block; margin-bottom: 3px; font-size: 0.8em; opacity: 0.9; }
+        .form-group label { 
+            display: block; 
+            margin-bottom: 4px; 
+            font-size: 10px; 
+            color: var(--text-normal, var(--text-secondary));
+            font-weight: 500;
+        }
         .form-group input, .form-group select {
             width: 100%;
             padding: 7px 9px;
-            border: 1px solid rgba(255,255,255,0.3);
-            border-radius: 5px;
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-            font-size: 0.85em;
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 3px;
+            background: var(--background-normal, var(--bg-primary));
+            color: var(--text-normal, var(--text-primary));
+            font-size: 11px;
         }
-        .form-group select option { background: #2d5a87; color: #fff; }
         .form-group input:focus, .form-group select:focus {
             outline: none;
-            border-color: #4fc3f7;
+            border-color: var(--accent-color);
         }
-        .btn {
-            width: 100%;
-            padding: 9px;
-            border: none;
-            border-radius: 5px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-bottom: 6px;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
-            color: #fff;
-        }
-        .btn-primary:hover { background: linear-gradient(135deg, #29b6f6, #0288d1); }
-        .btn-primary:disabled { background: #546e7a; cursor: not-allowed; }
-        .btn-secondary {
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
+        
         .queries-list {
-            background: rgba(0,0,0,0.2);
-            border-radius: 6px;
-            max-height: 80px;
+            background: var(--background-toolbar, var(--bg-secondary));
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 4px;
+            max-height: 90px;
             overflow-y: auto;
-            margin-bottom: 10px;
         }
         .query-item {
             padding: 8px 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid var(--border-regular-control, var(--border-color));
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.15s;
         }
-        .query-item:hover { background: rgba(255,255,255,0.1); }
-        .query-item.selected { background: rgba(79, 195, 247, 0.3); }
+        .query-item:hover { 
+            background: var(--highlight-button-hover, rgba(68, 104, 147, 0.1)); 
+        }
+        .query-item.selected { 
+            background: var(--highlight-button-pressed, rgba(68, 104, 147, 0.2));
+            border-left: 3px solid var(--accent-color);
+        }
         .query-item:last-child { border-bottom: none; }
-        .query-name { font-weight: 500; font-size: 0.85em; }
-        .query-desc { font-size: 0.7em; opacity: 0.7; }
+        .query-name { 
+            font-weight: 600; 
+            font-size: 11px;
+            color: var(--text-normal, var(--text-primary));
+        }
+        .query-desc { 
+            font-size: 9px; 
+            color: var(--text-normal, var(--text-secondary));
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+        
         .data-preview {
-            background: rgba(0,0,0,0.2);
-            border-radius: 6px;
+            background: var(--background-toolbar, var(--bg-secondary));
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 4px;
             max-height: 120px;
             overflow: auto;
             margin-bottom: 10px;
-            font-size: 0.7em;
         }
-        .preview-table { width: 100%; border-collapse: collapse; }
+        .preview-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 9px;
+        }
         .preview-table th, .preview-table td {
             padding: 5px 6px;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid var(--border-regular-control, var(--border-color));
             text-align: left;
             white-space: nowrap;
+            color: var(--text-normal, var(--text-primary));
         }
-        .preview-table th { background: rgba(255,255,255,0.1); font-weight: bold; }
-        .loading-text { text-align: center; padding: 15px; opacity: 0.7; font-size: 0.85em; }
+        .preview-table th { 
+            background: var(--background-toolbar, var(--bg-tertiary));
+            font-weight: 600;
+            color: var(--text-normal, var(--text-primary));
+        }
+        
+        .loading-text { 
+            text-align: center; 
+            padding: 15px; 
+            color: var(--text-normal, var(--text-muted));
+            font-size: 10px;
+        }
+        
         .error-msg {
-            background: rgba(244, 67, 54, 0.2);
-            border: 1px solid #f44336;
-            border-radius: 5px;
-            padding: 6px;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--error-color);
+            border-radius: 4px;
+            padding: 8px;
             margin-bottom: 8px;
-            font-size: 0.8em;
+            font-size: 10px;
+            color: var(--error-color);
         }
-        .stats { font-size: 0.7em; opacity: 0.8; margin-bottom: 8px; text-align: center; }
-        .footer { margin-top: 10px; text-align: center; font-size: 0.65em; opacity: 0.5; }
+        
+        .stats { 
+            font-size: 10px; 
+            color: var(--text-normal, var(--text-secondary));
+            margin-bottom: 8px; 
+            text-align: center;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-regular-control, var(--border-color));
+            border-radius: 3px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .btn-primary {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: #fff;
+        }
+        .btn-primary:hover:not(:disabled) { 
+            background: var(--accent-hover);
+        }
+        .btn-primary:disabled { 
+            background: var(--bg-tertiary);
+            border-color: var(--border-color);
+            color: var(--text-muted);
+            cursor: not-allowed; 
+        }
+        .btn-secondary {
+            background: var(--background-normal, var(--bg-primary));
+            color: var(--text-normal, var(--text-primary));
+        }
+        .btn-secondary:hover:not(:disabled) { 
+            background: var(--highlight-button-hover, var(--bg-secondary));
+        }
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .footer { 
+            margin-top: 10px; 
+            text-align: center; 
+            font-size: 9px; 
+            color: var(--text-normal, var(--text-muted));
+            opacity: 0.6;
+        }
+        
+        /* Loader overlay */
         #loader-container {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(30, 58, 95, 0.95);
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
+            position: fixed; 
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--background-normal, var(--bg-primary));
+            opacity: 0.95;
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center;
             z-index: 1000;
         }
         #loader-container.hidden { display: none; }
         .loader-spinner {
-            width: 36px; height: 36px;
-            border: 3px solid rgba(255,255,255,0.2);
-            border-top-color: #4fc3f7;
+            width: 32px; height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-color);
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
-        .loader-text { margin-top: 10px; font-size: 0.85em; }
+        .loader-text { 
+            margin-top: 10px; 
+            font-size: 11px;
+            color: var(--text-normal, var(--text-secondary));
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>📊 Importar Datos BIW</h1>
-        <div class="subtitle">SAP BW Query Executor (MDX)</div>
+        <div class="subtitle">SAP BW Query Executor</div>
     </div>
 
     <div class="status-bar">
@@ -177,7 +299,7 @@
         ⬇️ Insertar en Hoja
     </button>
 
-    <div class="footer">BIW Data Connector v3.5.0</div>
+    <div class="footer">BIW Data Connector v3.9.14</div>
 
     <div id="loader-container" class="hidden">
         <div class="loader-spinner"></div>
@@ -187,6 +309,37 @@
     <script>
         (function() {
             'use strict';
+            
+            // Aplicar tema de ONLYOFFICE
+            function applyTheme() {
+                if (window.Asc && window.Asc.plugin) {
+                    const theme = window.Asc.plugin.theme;
+                    if (theme) {
+                        // Detectar si es tema oscuro
+                        const isDark = theme.type === 'dark' || 
+                                       theme.name?.includes('dark') || 
+                                       theme.name?.includes('contrast');
+                        
+                        document.body.classList.remove('theme-light', 'theme-dark');
+                        document.body.classList.add(isDark ? 'theme-dark' : 'theme-light');
+                        
+                        // Aplicar variables CSS del tema si están disponibles
+                        if (theme.colors) {
+                            const root = document.documentElement;
+                            Object.entries(theme.colors).forEach(([key, value]) => {
+                                root.style.setProperty('--' + key.replace(/_/g, '-'), value);
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Escuchar cambios de tema
+            if (window.Asc && window.Asc.plugin) {
+                window.Asc.plugin.onThemeChanged = function(theme) {
+                    applyTheme();
+                };
+            }
             
             // Queries BW disponibles
             const AVAILABLE_QUERIES = [
@@ -199,6 +352,7 @@
             
             let selectedQuery = null;
             let currentData = null;
+            let currentResult = null;
             
             const $ = id => document.getElementById(id);
             const statusIndicator = $('statusIndicator');
@@ -249,7 +403,7 @@
                     statusIndicator.className = 'status-indicator error';
                     statusText.textContent = 'Sin conexión';
                     showError(error.message);
-                    queriesList.innerHTML = '<div class="loading-text">❌ Error</div>';
+                    queriesList.innerHTML = '<div class="loading-text">❌ Error de conexión</div>';
                 }
             }
             
@@ -269,7 +423,8 @@
                         btnExecute.disabled = false;
                         btnInsert.disabled = true;
                         currentData = null;
-                        dataPreview.innerHTML = '<div class="loading-text">Click en Ejecutar</div>';
+                        currentResult = null;
+                        dataPreview.innerHTML = '<div class="loading-text">Click en "Ejecutar Query"</div>';
                         statsContainer.textContent = '';
                     });
                 });
@@ -291,12 +446,10 @@
                             const config = JSON.parse(savedConfig);
                             if (config.queryName === selectedQuery.name) {
                                 queryConfig = config;
-                                console.log('📊 Usando config guardada:', config);
                             }
                         }
                     } catch(e) {}
                     
-                    // Usar el endpoint MDX con la configuración
                     const response = await fetch(url + '/api/bw-query/execute-mdx', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -320,8 +473,8 @@
                     }
                     
                     currentData = rows;
+                    currentResult = result;
                     const headers = Object.keys(rows[0]);
-                    const metadata = result.metadata || {};
                     
                     // Preview en tabla
                     let html = '<table class="preview-table"><thead><tr>';
@@ -341,7 +494,7 @@
                     });
                     
                     if (rows.length > 4) {
-                        html += '<tr><td colspan="' + Math.min(headers.length, 6) + '" style="text-align:center;opacity:0.5">+' + (rows.length - 4) + ' filas</td></tr>';
+                        html += '<tr><td colspan="' + Math.min(headers.length, 6) + '" style="text-align:center;opacity:0.5">+' + (rows.length - 4) + ' filas más</td></tr>';
                     }
                     
                     html += '</tbody></table>';
@@ -360,19 +513,27 @@
             function insertData() {
                 if (!currentData || currentData.length === 0) return;
                 
-                showLoader('Insertando...');
+                showLoader('Insertando datos...');
                 
                 if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
+                    const numFormat = localStorage.getItem('biw_number_format') || 'EU';
+                    
                     window.Asc.plugin.sendToPlugin("onInsertData", {
                         query: selectedQuery,
-                        rows: currentData
+                        rows: currentData,
+                        columns: currentResult?.columns || null,
+                        multiLevelHeaders: currentResult?.multiLevelHeaders || null,
+                        numberFormat: numFormat
                     });
                 }
                 
                 setTimeout(hideLoader, 500);
             }
             
-            window.Asc.plugin.init = function() { connect(); };
+            window.Asc.plugin.init = function() { 
+                applyTheme();
+                connect(); 
+            };
             
             window.Asc.plugin.button = function(id) {
                 if (id === 0 && currentData) insertData();
