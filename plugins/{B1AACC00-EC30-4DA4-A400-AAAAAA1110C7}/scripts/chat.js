@@ -6,9 +6,15 @@
     var sendBtn = document.getElementById("send-btn");
     var statusIndicator = document.getElementById("status-indicator");
     var statusText = document.getElementById("status-text");
-    var settingsBtn = document.getElementById("settings-btn");
-    var settingsPanel = document.getElementById("settings-panel");
-    var saveSettingsBtn = document.getElementById("save-settings");
+
+    var settingsToggle = document.getElementById("settings-toggle");
+    var settingsSection = document.getElementById("settings-section");
+    var cfgUrl = document.getElementById("cfg-brain-url");
+    var cfgKey = document.getElementById("cfg-api-key");
+    var cfgModel = document.getElementById("cfg-model");
+    var cfgTest = document.getElementById("cfg-test");
+    var cfgSave = document.getElementById("cfg-save");
+    var cfgStatus = document.getElementById("cfg-status");
 
     var conversationHistory = [];
     var currentController = null;
@@ -22,8 +28,59 @@
         "use the available spreadsheet tools. Always be concise and helpful. " +
         "Respond in the same language the user uses.";
 
+    // --- Settings ---
+
+    function loadSettings() {
+        cfgUrl.value   = BrainClient.getBaseUrl();
+        cfgKey.value   = BrainClient.getApiKey();
+        cfgModel.value = BrainClient.getModel();
+    }
+
+    function saveSettings() {
+        try {
+            localStorage.setItem(BrainClient.KEYS.brainUrl, cfgUrl.value.trim());
+            localStorage.setItem(BrainClient.KEYS.apiKey,   cfgKey.value.trim());
+            localStorage.setItem(BrainClient.KEYS.model,    cfgModel.value.trim());
+        } catch (e) { /* ignore */ }
+        showCfgStatus("ok", "Guardado");
+        checkConnection();
+    }
+
+    function testConnection() {
+        var url = cfgUrl.value.trim() + "/v1/models";
+        var apiKey = cfgKey.value.trim();
+        var headers = {};
+        if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
+
+        showCfgStatus("", "Probando...");
+
+        fetch(url, { headers: headers })
+            .then(function (res) {
+                if (res.ok) {
+                    showCfgStatus("ok", "OK (HTTP " + res.status + ")");
+                } else {
+                    showCfgStatus("fail", "Error HTTP " + res.status);
+                }
+            })
+            .catch(function (err) {
+                showCfgStatus("fail", err.message);
+            });
+    }
+
+    function showCfgStatus(cls, text) {
+        cfgStatus.className = cls;
+        cfgStatus.textContent = text;
+    }
+
+    function toggleSettings() {
+        var visible = settingsSection.style.display !== "none";
+        settingsSection.style.display = visible ? "none" : "block";
+        if (!visible) loadSettings();
+    }
+
+    // --- Chat ---
+
     function init() {
-        sendBtn.disabled = false;
         sendBtn.addEventListener("click", onSend);
         inputEl.addEventListener("keydown", function (e) {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -32,44 +89,46 @@
             }
         });
 
-        if (settingsBtn) {
-            settingsBtn.addEventListener("click", toggleSettings);
-        }
-        if (saveSettingsBtn) {
-            saveSettingsBtn.addEventListener("click", saveSettings);
-            loadSettingsValues();
-        }
+        settingsToggle.addEventListener("click", toggleSettings);
+        cfgTest.addEventListener("click", testConnection);
+        cfgSave.addEventListener("click", saveSettings);
 
-        updateStatus("connected", "Conectado a Brain");
         conversationHistory.push({ role: "system", content: SYSTEM_PROMPT });
-    }
 
-    function toggleSettings() {
-        if (settingsPanel) {
-            settingsPanel.style.display = settingsPanel.style.display === "none" ? "block" : "none";
+        if (window._BRAIN_SHOW_SETTINGS) {
+            loadSettings();
         }
+
+        checkConnection();
     }
 
-    function loadSettingsValues() {
-        var urlInput = document.getElementById("setting-brain-url");
-        var keyInput = document.getElementById("setting-api-key");
-        var modelInput = document.getElementById("setting-model");
-        if (urlInput) urlInput.value = BrainClient.getBaseUrl();
-        if (keyInput) keyInput.value = BrainClient.getApiKey();
-        if (modelInput) modelInput.value = BrainClient.getModel();
-    }
+    function checkConnection() {
+        var baseUrl = BrainClient.getBaseUrl();
+        var apiKey = BrainClient.getApiKey();
 
-    function saveSettings() {
-        var urlInput = document.getElementById("setting-brain-url");
-        var keyInput = document.getElementById("setting-api-key");
-        var modelInput = document.getElementById("setting-model");
-        try {
-            if (urlInput) localStorage.setItem(BrainClient.BRAIN_URL_KEY, urlInput.value);
-            if (keyInput) localStorage.setItem(BrainClient.BRAIN_APIKEY_KEY, keyInput.value);
-            if (modelInput) localStorage.setItem(BrainClient.BRAIN_MODEL_KEY, modelInput.value);
-        } catch (e) { /* ignore */ }
-        toggleSettings();
-        updateStatus("connected", "Ajustes guardados");
+        if (!apiKey) {
+            updateStatus("error", "Sin API Key — pulsa ⚙ para configurar");
+            sendBtn.disabled = false;
+            return;
+        }
+
+        updateStatus("streaming", "Conectando...");
+        var headers = { "Authorization": "Bearer " + apiKey };
+
+        fetch(baseUrl + "/v1/models", { headers: headers })
+            .then(function (res) {
+                if (res.ok) {
+                    updateStatus("connected", "Conectado (" + BrainClient.getModel() + ")");
+                    sendBtn.disabled = false;
+                } else {
+                    updateStatus("error", "Error HTTP " + res.status + " — pulsa ⚙");
+                    sendBtn.disabled = false;
+                }
+            })
+            .catch(function (err) {
+                updateStatus("error", err.message + " — pulsa ⚙");
+                sendBtn.disabled = false;
+            });
     }
 
     function onSend() {
@@ -85,12 +144,16 @@
         updateStatus("streaming", "Pensando...");
 
         var assistantEl = addMessage("assistant", "");
+        var contentEl = assistantEl.querySelector(".msg-content");
         var fullContent = "";
 
         currentController = BrainClient.chatStream(conversationHistory, {
             onDelta: function (delta) {
                 fullContent += delta;
-                assistantEl.querySelector(".msg-content").innerHTML = formatMarkdown(fullContent);
+                var parsed = BrainEvents.parse(fullContent);
+                var eventsHtml = BrainEvents.renderAll(parsed.events);
+                var textHtml = parsed.text ? formatMarkdown(parsed.text) : "";
+                contentEl.innerHTML = eventsHtml + textHtml;
                 messagesEl.scrollTop = messagesEl.scrollHeight;
             },
             onToolCall: function (toolCalls) {
@@ -106,20 +169,24 @@
                 if (fullContent) {
                     conversationHistory.push({ role: "assistant", content: fullContent });
                 }
+                var parsed = BrainEvents.parse(fullContent);
+                var eventsHtml = BrainEvents.renderAll(parsed.events);
+                var textHtml = parsed.text ? formatMarkdown(parsed.text) : "";
+                contentEl.innerHTML = eventsHtml + textHtml;
                 isStreaming = false;
                 sendBtn.disabled = false;
                 currentController = null;
-                updateStatus("connected", "Conectado a Brain");
+                updateStatus("connected", "Conectado (" + BrainClient.getModel() + ")");
             },
             onError: function (err) {
                 if (!fullContent) {
-                    assistantEl.querySelector(".msg-content").textContent = "Error: " + err;
+                    contentEl.textContent = "Error: " + err;
                     assistantEl.classList.add("error");
                 }
                 isStreaming = false;
                 sendBtn.disabled = false;
                 currentController = null;
-                updateStatus("error", "Error: " + err);
+                updateStatus("error", "Error — pulsa ⚙ para revisar config");
             }
         });
     }
@@ -156,23 +223,16 @@
     }
 
     function updateStatus(state, text) {
-        if (statusIndicator) {
-            statusIndicator.className = state;
-        }
-        if (statusText) {
-            statusText.textContent = text;
-        }
+        if (statusIndicator) statusIndicator.className = state;
+        if (statusText) statusText.textContent = text;
     }
 
-    // Integrate with OnlyOffice plugin
     window.Asc.plugin.init = function () {
         init();
     };
 
     window.Asc.plugin.button = function () {
-        if (currentController) {
-            currentController.abort();
-        }
+        if (currentController) currentController.abort();
         this.executeCommand("close", "");
     };
 })();

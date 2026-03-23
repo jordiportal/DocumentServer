@@ -1,9 +1,38 @@
 var PresentationHandlers = (function () {
     "use strict";
 
-    function getSlides() {
+    function safeStr(v) {
+        if (v === null || v === undefined) return "";
+        if (typeof v === "object") return JSON.stringify(v);
+        return String(v);
+    }
+
+    function safeCallCommand(fn, isWrite) {
         return new Promise(function (resolve) {
-            window.Asc.plugin.callCommand(function () {
+            var timeout = setTimeout(function () {
+                resolve({ error: "callCommand timeout (15s)" });
+            }, 15000);
+
+            try {
+                window.Asc.plugin.callCommand(
+                    fn,
+                    isWrite ? false : false,
+                    isWrite ? true : false,
+                    function (result) {
+                        clearTimeout(timeout);
+                        resolve(result || { error: "empty result" });
+                    }
+                );
+            } catch (e) {
+                clearTimeout(timeout);
+                resolve({ error: "callCommand exception: " + (e.message || String(e)) });
+            }
+        });
+    }
+
+    function getSlides() {
+        return safeCallCommand(function () {
+            try {
                 var pres = Api.GetPresentation();
                 var slideCount = pres.GetSlidesCount();
                 var slides = [];
@@ -34,32 +63,24 @@ var PresentationHandlers = (function () {
                             }
                         }
                     }
-
                     slides.push(slideInfo);
                 }
 
                 return { slideCount: slideCount, slides: slides };
-            }, false, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "getSlides: " + e.message };
+            }
+        }, false);
     }
 
     function addSlide(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._position = params.position;
-            window.Asc.scope._layout = params.layout || "titleContent";
+        window.Asc.scope._position = params.position;
+        window.Asc.scope._layout = params.layout || "titleContent";
 
-            window.Asc.plugin.callCommand(function () {
+        return safeCallCommand(function () {
+            try {
                 var pres = Api.GetPresentation();
                 var slide = Api.CreateSlide();
-
-                var layoutMap = {
-                    "blank": Api.CreateLayout ? null : null,
-                    "title": "Title Slide",
-                    "titleContent": "Title, Content",
-                    "twoContent": "Two Content"
-                };
 
                 var master = pres.GetSlideByIndex(0);
                 if (master) {
@@ -79,29 +100,33 @@ var PresentationHandlers = (function () {
                     position: pos !== undefined && pos !== null ? pos : pres.GetSlidesCount() - 1,
                     totalSlides: pres.GetSlidesCount()
                 };
-            }, true, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "addSlide: " + e.message };
+            }
+        }, true);
     }
 
     function setText(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._slideIndex = params.slideIndex;
-            window.Asc.scope._placeholder = params.placeholder;
-            window.Asc.scope._text = params.text;
+        if (!params.text) return Promise.resolve({ error: "missing text parameter" });
+        if (params.slideIndex === undefined) return Promise.resolve({ error: "missing slideIndex" });
 
-            window.Asc.plugin.callCommand(function () {
+        window.Asc.scope._slideIndex = params.slideIndex;
+        window.Asc.scope._placeholder = params.placeholder || "title";
+        window.Asc.scope._text = safeStr(params.text);
+
+        return safeCallCommand(function () {
+            try {
                 var pres = Api.GetPresentation();
                 var slide = pres.GetSlideByIndex(Asc.scope._slideIndex);
                 if (!slide) return { error: "Slide not found at index " + Asc.scope._slideIndex };
 
                 var shapes = slide.GetAllShapes();
                 var placeholderMap = { "title": 0, "subtitle": 1, "body": 1 };
-                var targetIdx = placeholderMap[Asc.scope._placeholder] || 0;
+                var targetIdx = placeholderMap[Asc.scope._placeholder];
+                if (targetIdx === undefined) targetIdx = 0;
 
                 if (targetIdx >= shapes.length) {
-                    return { error: "Placeholder '" + Asc.scope._placeholder + "' not found on slide" };
+                    return { error: "Placeholder '" + Asc.scope._placeholder + "' not found (only " + shapes.length + " shapes)" };
                 }
 
                 var shape = shapes[targetIdx];
@@ -123,30 +148,29 @@ var PresentationHandlers = (function () {
                     slideIndex: Asc.scope._slideIndex,
                     placeholder: Asc.scope._placeholder
                 };
-            }, true, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "setText: " + e.message };
+            }
+        }, true);
     }
 
     function insertChart(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._slideIndex = params.slideIndex;
-            window.Asc.scope._chartType = params.chartType || "bar";
-            window.Asc.scope._data = params.data;
-            window.Asc.scope._title = params.title || "";
+        if (!params.data) return Promise.resolve({ error: "missing data parameter" });
 
-            window.Asc.plugin.callCommand(function () {
+        window.Asc.scope._slideIndex = params.slideIndex || 0;
+        window.Asc.scope._chartType = params.chartType || "bar";
+        window.Asc.scope._data = params.data;
+        window.Asc.scope._title = params.title || "";
+
+        return safeCallCommand(function () {
+            try {
                 var pres = Api.GetPresentation();
                 var slide = pres.GetSlideByIndex(Asc.scope._slideIndex);
-                if (!slide) return { error: "Slide not found" };
+                if (!slide) return { error: "Slide not found at index " + Asc.scope._slideIndex };
 
                 var typeMap = {
-                    "bar": "bar",
-                    "line": "lineNormal",
-                    "pie": "pie",
-                    "scatter": "scatter",
-                    "area": "areaNormal"
+                    "bar": "bar", "line": "lineNormal", "pie": "pie",
+                    "scatter": "scatter", "area": "areaNormal"
                 };
                 var cType = typeMap[Asc.scope._chartType] || "bar";
 
@@ -163,10 +187,10 @@ var PresentationHandlers = (function () {
                     slideIndex: Asc.scope._slideIndex,
                     chartType: Asc.scope._chartType
                 };
-            }, true, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "insertChart: " + e.message };
+            }
+        }, true);
     }
 
     return {

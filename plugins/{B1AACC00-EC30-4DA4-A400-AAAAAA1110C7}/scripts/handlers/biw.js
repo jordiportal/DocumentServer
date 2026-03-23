@@ -1,11 +1,27 @@
 var BiwHandlers = (function () {
     "use strict";
 
-    var META_SHEET_NAME = "_BIWMeta";
+    function safeCallCommand(fn) {
+        return new Promise(function (resolve) {
+            var timeout = setTimeout(function () {
+                resolve({ error: "callCommand timeout (15s)" });
+            }, 15000);
+
+            try {
+                window.Asc.plugin.callCommand(fn, false, false, function (result) {
+                    clearTimeout(timeout);
+                    resolve(result || { error: "empty result" });
+                });
+            } catch (e) {
+                clearTimeout(timeout);
+                resolve({ error: "callCommand exception: " + (e.message || String(e)) });
+            }
+        });
+    }
 
     function getBiwMetadata() {
-        return new Promise(function (resolve) {
-            window.Asc.plugin.callCommand(function () {
+        return safeCallCommand(function () {
+            try {
                 var metaSheet = Api.GetSheet("_BIWMeta");
                 if (!metaSheet) {
                     return { hasBiwData: false, message: "No _BIWMeta sheet found. This spreadsheet does not contain BIW data." };
@@ -17,32 +33,26 @@ var BiwHandlers = (function () {
                     if (!sheetName || sheetName === "") break;
                     var rowCount = parseInt(metaSheet.GetRangeByNumber(i, 1).GetValue()) || 0;
                     var colCount = parseInt(metaSheet.GetRangeByNumber(i, 2).GetValue()) || 0;
-                    sheets.push({
-                        sheetName: sheetName,
-                        rowCount: rowCount,
-                        colCount: colCount
-                    });
+                    sheets.push({ sheetName: sheetName, rowCount: rowCount, colCount: colCount });
                 }
 
                 return {
                     hasBiwData: true,
                     metaSheetFound: true,
                     sheetsWithBiwData: sheets,
-                    hint: "This spreadsheet was populated by the BIW Data Connector plugin from SAP BW. " +
-                          "Columns typically include SAP dimensions (characteristics) and key figures (measures). " +
-                          "Multi-level headers may be present."
+                    hint: "This spreadsheet was populated by the BIW Data Connector plugin from SAP BW."
                 };
-            }, false, false, function (result) {
-                resolve(result);
-            });
+            } catch (e) {
+                return { error: "getBiwMetadata: " + e.message };
+            }
         });
     }
 
     function analyzeBiwData(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._sheetName = params.sheet || null;
+        window.Asc.scope._sheetName = params.sheet || null;
 
-            window.Asc.plugin.callCommand(function () {
+        return safeCallCommand(function () {
+            try {
                 var sheet = Asc.scope._sheetName
                     ? Api.GetSheet(Asc.scope._sheetName)
                     : Api.GetActiveSheet();
@@ -92,27 +102,18 @@ var BiwHandlers = (function () {
                     var numericCount = 0;
                     var textCount = 0;
                     var sampleValues = [];
-
                     var dataStart = headerRowCount;
                     var sampleEnd = Math.min(dataStart + 20, rowCount);
 
                     for (var sr = dataStart; sr < sampleEnd; sr++) {
                         var v = usedRange.GetCells(sr, col).GetValue();
                         if (v === null || v === undefined || v === "") continue;
-                        if (!isNaN(parseFloat(v))) {
-                            numericCount++;
-                        } else {
-                            textCount++;
-                        }
+                        if (!isNaN(parseFloat(v))) numericCount++;
+                        else textCount++;
                         if (sampleValues.length < 5) sampleValues.push(String(v));
                     }
 
-                    var colInfo = {
-                        index: col,
-                        name: colName,
-                        sampleValues: sampleValues
-                    };
-
+                    var colInfo = { index: col, name: colName, sampleValues: sampleValues };
                     if (numericCount > textCount && numericCount > 0) {
                         colInfo.type = "keyFigure";
                         keyFigures.push(colInfo);
@@ -121,8 +122,6 @@ var BiwHandlers = (function () {
                         dimensions.push(colInfo);
                     }
                 }
-
-                var hasBiwMeta = !!Api.GetSheet("_BIWMeta");
 
                 return {
                     sheetName: sheetName,
@@ -133,14 +132,11 @@ var BiwHandlers = (function () {
                     dimensions: dimensions,
                     keyFigures: keyFigures,
                     dataRowCount: rowCount - headerRowCount,
-                    hasBiwMeta: hasBiwMeta,
-                    analysisHint: "Dimensions are SAP BW characteristics (categories). " +
-                                  "Key figures are SAP BW measures (numeric values). " +
-                                  "If you need more data from SAP BW, ask the user or delegate to sap_analyst."
+                    hasBiwMeta: !!Api.GetSheet("_BIWMeta")
                 };
-            }, false, false, function (result) {
-                resolve(result);
-            });
+            } catch (e) {
+                return { error: "analyzeBiwData: " + e.message };
+            }
         });
     }
 

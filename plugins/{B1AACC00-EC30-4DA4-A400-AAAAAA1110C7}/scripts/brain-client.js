@@ -1,27 +1,26 @@
 var BrainClient = (function () {
     "use strict";
 
-    var BRAIN_URL_KEY = "brain_bridge_brain_url";
-    var BRAIN_APIKEY_KEY = "brain_bridge_api_key";
-    var BRAIN_MODEL_KEY = "brain_bridge_model";
+    var KEYS = {
+        brainUrl: "brain_chat_url",
+        apiKey:   "brain_chat_api_key",
+        model:    "brain_chat_model"
+    };
 
-    var DEFAULT_BRAIN_URL = "http://localhost:8000";
-    var DEFAULT_MODEL = "brain";
+    var DEFAULTS = {
+        brainUrl: "http://localhost:8000",
+        apiKey:   "",
+        model:    "brain-adaptive"
+    };
 
-    function getSetting(key, defaultVal) {
-        try { return localStorage.getItem(key) || defaultVal; } catch (e) { return defaultVal; }
+    function get(key) {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
     }
 
-    function getBaseUrl() { return getSetting(BRAIN_URL_KEY, DEFAULT_BRAIN_URL); }
-    function getApiKey()  { return getSetting(BRAIN_APIKEY_KEY, ""); }
-    function getModel()   { return getSetting(BRAIN_MODEL_KEY, DEFAULT_MODEL); }
+    function getBaseUrl() { return get(KEYS.brainUrl) || DEFAULTS.brainUrl; }
+    function getApiKey()  { return get(KEYS.apiKey)   || DEFAULTS.apiKey; }
+    function getModel()   { return get(KEYS.model)    || DEFAULTS.model; }
 
-    /**
-     * Send a chat completion request with streaming.
-     * @param {Array} messages - Array of {role, content} message objects
-     * @param {Object} opts - Optional: { onDelta, onDone, onError, onToolCall }
-     * @returns {AbortController} - Can be used to cancel the request
-     */
     function chatStream(messages, opts) {
         opts = opts || {};
         var controller = new AbortController();
@@ -113,8 +112,7 @@ var BrainClient = (function () {
         getBaseUrl: getBaseUrl,
         getApiKey: getApiKey,
         getModel: getModel,
-        BRAIN_URL_KEY: BRAIN_URL_KEY,
-        BRAIN_APIKEY_KEY: BRAIN_APIKEY_KEY,
-        BRAIN_MODEL_KEY: BRAIN_MODEL_KEY
+        KEYS: KEYS,
+        DEFAULTS: DEFAULTS
     };
 })();

@@ -1,12 +1,41 @@
 var DocumentHandlers = (function () {
     "use strict";
 
-    function getContext(params) {
-        return new Promise(function (resolve) {
-            var sampleN = (params && params.sampleParagraphs) || 5;
-            window.Asc.scope._sampleN = sampleN;
+    function safeStr(v) {
+        if (v === null || v === undefined) return "";
+        if (typeof v === "object") return JSON.stringify(v);
+        return String(v);
+    }
 
-            window.Asc.plugin.callCommand(function () {
+    function safeCallCommand(fn, isWrite) {
+        return new Promise(function (resolve) {
+            var timeout = setTimeout(function () {
+                resolve({ error: "callCommand timeout (15s)" });
+            }, 15000);
+
+            try {
+                window.Asc.plugin.callCommand(
+                    fn,
+                    isWrite ? false : false,
+                    isWrite ? true : false,
+                    function (result) {
+                        clearTimeout(timeout);
+                        resolve(result || { error: "empty result" });
+                    }
+                );
+            } catch (e) {
+                clearTimeout(timeout);
+                resolve({ error: "callCommand exception: " + (e.message || String(e)) });
+            }
+        });
+    }
+
+    function getContext(params) {
+        var sampleN = (params && params.sampleParagraphs) || 5;
+        window.Asc.scope._sampleN = sampleN;
+
+        return safeCallCommand(function () {
+            try {
                 var doc = Api.GetDocument();
                 var elements = doc.GetAllParagraphs();
                 var totalParagraphs = elements.length;
@@ -47,18 +76,18 @@ var DocumentHandlers = (function () {
                     topParagraphs: topParagraphs,
                     bottomParagraphs: bottomParagraphs
                 };
-            }, false, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "getContext: " + e.message };
+            }
+        }, false);
     }
 
     function readText(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._start = params.startParagraph || 0;
-            window.Asc.scope._end = params.endParagraph || null;
+        window.Asc.scope._start = params.startParagraph || 0;
+        window.Asc.scope._end = params.endParagraph || null;
 
-            window.Asc.plugin.callCommand(function () {
+        return safeCallCommand(function () {
+            try {
                 var doc = Api.GetDocument();
                 var elements = doc.GetAllParagraphs();
                 var start = Asc.scope._start;
@@ -76,18 +105,20 @@ var DocumentHandlers = (function () {
                     total: elements.length,
                     paragraphs: paragraphs
                 };
-            }, false, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "readText: " + e.message };
+            }
+        }, false);
     }
 
     function insertText(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._text = params.text;
-            window.Asc.scope._style = params.style || "normal";
+        if (!params.text) return Promise.resolve({ error: "missing text parameter" });
 
-            window.Asc.plugin.callCommand(function () {
+        window.Asc.scope._text = safeStr(params.text);
+        window.Asc.scope._style = params.style || "normal";
+
+        return safeCallCommand(function () {
+            try {
                 var doc = Api.GetDocument();
                 var para = Api.CreateParagraph();
 
@@ -105,38 +136,42 @@ var DocumentHandlers = (function () {
                 doc.Push(para);
 
                 return { inserted: true, style: Asc.scope._style };
-            }, true, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "insertText: " + e.message };
+            }
+        }, true);
     }
 
     function replaceText(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._search = params.searchText;
-            window.Asc.scope._replace = params.replaceWith;
-            window.Asc.scope._matchCase = params.matchCase || false;
+        if (!params.searchText || !params.replaceWith) return Promise.resolve({ error: "missing searchText or replaceWith" });
 
-            window.Asc.plugin.callCommand(function () {
+        window.Asc.scope._search = params.searchText;
+        window.Asc.scope._replace = params.replaceWith;
+        window.Asc.scope._matchCase = params.matchCase || false;
+
+        return safeCallCommand(function () {
+            try {
                 var doc = Api.GetDocument();
-                var search = doc.SearchAndReplace({
+                doc.SearchAndReplace({
                     searchString: Asc.scope._search,
                     replaceString: Asc.scope._replace,
                     matchCase: Asc.scope._matchCase
                 });
                 return { replaced: true, searchText: Asc.scope._search };
-            }, true, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "replaceText: " + e.message };
+            }
+        }, true);
     }
 
     function insertTable(params) {
-        return new Promise(function (resolve) {
-            window.Asc.scope._headers = params.headers;
-            window.Asc.scope._rows = params.rows;
+        if (!params.headers || !params.rows) return Promise.resolve({ error: "missing headers or rows" });
 
-            window.Asc.plugin.callCommand(function () {
+        window.Asc.scope._headers = params.headers;
+        window.Asc.scope._rows = params.rows;
+
+        return safeCallCommand(function () {
+            try {
                 var doc = Api.GetDocument();
                 var headers = Asc.scope._headers;
                 var rows = Asc.scope._rows;
@@ -149,7 +184,7 @@ var DocumentHandlers = (function () {
                     var cell = table.GetCell(0, c);
                     var content = cell.GetContent();
                     var para = content.GetElement(0);
-                    para.AddText(headers[c]);
+                    para.AddText(String(headers[c]));
                     para.SetBold(true);
                 }
 
@@ -157,17 +192,17 @@ var DocumentHandlers = (function () {
                     for (var cc = 0; cc < Math.min(rows[r].length, totalCols); cc++) {
                         var dataCell = table.GetCell(r + 1, cc);
                         var dataPara = dataCell.GetContent().GetElement(0);
-                        dataPara.AddText(rows[r][cc]);
+                        dataPara.AddText(String(rows[r][cc] || ""));
                     }
                 }
 
                 doc.Push(table);
 
                 return { inserted: true, rows: totalRows, cols: totalCols };
-            }, true, false, function (result) {
-                resolve(result);
-            });
-        });
+            } catch (e) {
+                return { error: "insertTable: " + e.message };
+            }
+        }, true);
     }
 
     return {
