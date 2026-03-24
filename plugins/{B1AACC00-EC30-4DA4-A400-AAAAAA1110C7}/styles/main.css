@@ -435,15 +435,17 @@ html, body {
     color: #c62828;
 }
 
-/* Status */
-.be-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 10px;
-    background: #f3e5f5;
-    border-color: #ce93d8;
-    color: #6a1b9a;
+/* Iteration badge */
+.be-iter-badge {
+    display: inline-block;
+    font-size: 10px;
+    color: #888;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1px 7px;
+    margin-top: 2px;
+    letter-spacing: 0.3px;
 }
 
 /* --- Input Area --- */

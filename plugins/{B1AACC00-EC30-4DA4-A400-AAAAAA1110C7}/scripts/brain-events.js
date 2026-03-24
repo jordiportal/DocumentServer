@@ -75,8 +75,21 @@ var BrainEvents = (function () {
         }
     }
 
+    function eventKey(evt) {
+        var key = evt.type || "unknown";
+        if (evt.type === "action") {
+            key += ":" + (evt.action || evt.action_type || "");
+            if (evt.agent_name) key += ":" + evt.agent_name;
+        } else if (evt.type === "thinking") {
+            key += ":" + (evt.title || "");
+        } else if (evt.type === "status" && evt.status_type === "iteration") {
+            key += ":iter:" + (evt.iteration || "");
+        }
+        return key;
+    }
+
     function parse(content) {
-        var events = [];
+        var allEvents = [];
         var text = content;
         BRAIN_EVENT_RE.lastIndex = 0;
         var match;
@@ -87,12 +100,25 @@ var BrainEvents = (function () {
                     evt.content = decodeBase64(evt.content_base64);
                     delete evt.content_base64;
                 }
-                events.push(evt);
+                allEvents.push(evt);
             } catch (e) { /* skip malformed */ }
         }
         BRAIN_EVENT_RE.lastIndex = 0;
         text = content.replace(BRAIN_EVENT_RE, "").trim();
-        return { text: text, events: events };
+
+        var seen = {};
+        var order = [];
+        for (var i = 0; i < allEvents.length; i++) {
+            var k = eventKey(allEvents[i]);
+            if (seen[k] !== undefined) {
+                order[seen[k]] = allEvents[i];
+            } else {
+                seen[k] = order.length;
+                order.push(allEvents[i]);
+            }
+        }
+
+        return { text: text, events: order };
     }
 
     function statusClass(status) {
@@ -209,21 +235,6 @@ var BrainEvents = (function () {
         return html;
     }
 
-    function renderStatus(evt) {
-        if (evt.status_type === "iteration") {
-            var iter = evt.iteration || "?";
-            var max = evt.max_iterations || "?";
-            var desc = evt.description || "";
-            var html = '<div class="be-block be-status">';
-            html += '<span class="be-icon">&#128260;</span>';
-            html += '<span class="be-label">Iteración ' + iter + '/' + max;
-            if (desc) html += ' — ' + escapeHtml(desc);
-            html += '</span></div>';
-            return html;
-        }
-        return "";
-    }
-
     function renderEvent(evt) {
         switch (evt.type) {
             case "thinking": return renderThinking(evt);
@@ -232,16 +243,30 @@ var BrainEvents = (function () {
             case "error":    return renderError(evt);
             case "task_plan":
             case "task_plan_update": return renderTaskPlan(evt);
-            case "status":   return renderStatus(evt);
+            case "status":   return "";
             default: return "";
         }
     }
 
     function renderAll(events) {
         if (!events || events.length === 0) return "";
+
+        var lastIter = null;
+        for (var i = events.length - 1; i >= 0; i--) {
+            if (events[i].type === "status" && events[i].status_type === "iteration") {
+                lastIter = events[i];
+                break;
+            }
+        }
+
         var html = '<div class="be-events">';
         for (var i = 0; i < events.length; i++) {
             html += renderEvent(events[i]);
+        }
+        if (lastIter) {
+            var n = lastIter.iteration || "?";
+            var m = lastIter.max_iterations || "?";
+            html += '<span class="be-iter-badge">iter ' + n + '/' + m + '</span>';
         }
         html += '</div>';
         return html;
