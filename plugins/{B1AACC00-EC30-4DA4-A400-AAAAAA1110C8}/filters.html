@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Filtros</title>
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link  rel="stylesheet" href="../v1/plugins.css">
+    <script type="text/javascript" src="scripts/mock-data.js"></script>
+    <script type="text/javascript" src="scripts/datasource.js"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js"></script>
+    <link  rel="stylesheet" href="styles/main.css">
+    <style>
+        body { overflow-y: auto; }
+        .dim-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 5px 8px; border-bottom: 1px solid var(--border);
+            cursor: pointer; transition: background .12s;
+        }
+        .dim-row:hover { background: var(--bg-hover); }
+        .dim-row .badge {
+            font-size: 10px; background: var(--primary-bg);
+            color: var(--primary); padding: 1px 6px; border-radius: 8px;
+        }
+        .filter-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+        .filter-tag {
+            font-size: 10px; background: var(--primary-bg); color: var(--primary);
+            padding: 1px 6px; border-radius: 8px; display: inline-flex; align-items: center; gap: 3px;
+        }
+        .filter-tag .remove { cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Active query selector -->
+    <div class="form-group">
+        <label>Consulta activa</label>
+        <select id="querySelect"><option value="">-- Selecciona --</option></select>
+    </div>
+
+    <!-- Dimensions -->
+    <div id="dimsSection" class="section" style="display:none;">
+        <div class="section-title">Dimensiones</div>
+        <div id="dimsList"></div>
+    </div>
+
+    <!-- Measures -->
+    <div id="measuresSection" class="section" style="display:none;">
+        <div class="section-title">Medidas</div>
+        <div id="measureChips" class="chip-list"></div>
+    </div>
+
+    <!-- Active filters -->
+    <div id="filtersSection" class="section" style="display:none;">
+        <div class="section-title">Filtros activos</div>
+        <div id="filtersList"></div>
+    </div>
+
+    <!-- Execute -->
+    <div style="margin-top:8px; text-align:center;">
+        <button id="btnExecute" class="btn btn-primary" disabled>Ejecutar</button>
+    </div>
+
+    <div id="statusMsg" class="footer"></div>
+</div>
+
+<!-- Filter modal -->
+<div id="filterModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-box">
+        <h3 id="filterModalTitle">Filtrar dimensión</h3>
+        <div style="margin-bottom:8px;">
+            <input type="text" id="filterSearch" placeholder="Buscar...">
+        </div>
+        <ul id="filterCheckList" class="check-list"></ul>
+        <div class="actions">
+            <button class="btn btn-sm" id="filterSelAll">Todos</button>
+            <button class="btn btn-sm" id="filterSelNone">Ninguno</button>
+            <button class="btn btn-sm btn-primary" id="filterApply">Aplicar</button>
+            <button class="btn btn-sm" id="filterCancel">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    var dsManager = new DataSourceManager();
+    if (dsManager.list().length === 0) dsManager.register(new MockDataSource());
+
+    var querySelect     = document.getElementById('querySelect');
+    var dimsSection     = document.getElementById('dimsSection');
+    var dimsList        = document.getElementById('dimsList');
+    var measuresSection = document.getElementById('measuresSection');
+    var measureChips    = document.getElementById('measureChips');
+    var filtersSection  = document.getElementById('filtersSection');
+    var filtersList     = document.getElementById('filtersList');
+    var btnExecute      = document.getElementById('btnExecute');
+    var statusMsg       = document.getElementById('statusMsg');
+
+    var filterModal     = document.getElementById('filterModal');
+    var filterModalTitle = document.getElementById('filterModalTitle');
+    var filterSearch    = document.getElementById('filterSearch');
+    var filterCheckList = document.getElementById('filterCheckList');
+
+    var currentMeta     = null;
+    var currentQuery    = null;
+    var selectedDims    = [];
+    var selectedMeasures = [];
+    var activeFilters   = {};  // { dimName: [code, ...] }
+    var pendingDimName  = null;
+    var allDimValues    = [];
+
+    // Load queries list
+    async function init() {
+        var ds = dsManager.getActive();
+        if (!ds) return;
+        try {
+            var sources = await ds.listSources();
+            sources.forEach(function(s) {
+                var opt = document.createElement('option');
+                opt.value = s.name;
+                opt.textContent = s.description;
+                querySelect.appendChild(opt);
+            });
+        } catch(e) {
+            statusMsg.textContent = e.message;
+        }
+    }
+
+    async function loadMeta() {
+        var name = querySelect.value;
+        if (!name) { dimsSection.style.display = 'none'; measuresSection.style.display = 'none'; return; }
+
+        currentQuery = name;
+        activeFilters = {};
+        var ds = dsManager.getActive();
+        if (!ds) return;
+
+        try {
+            currentMeta = await ds.getMetadata(name);
+            selectedDims = [currentMeta.dimensions[0].name];
+            selectedMeasures = currentMeta.measures.map(function(m) { return m.name; });
+            renderDimensions();
+            renderMeasures();
+            renderFilters();
+            btnExecute.disabled = false;
+            dimsSection.style.display = '';
+            measuresSection.style.display = '';
+            filtersSection.style.display = '';
+        } catch(e) {
+            statusMsg.textContent = e.message;
+        }
+    }
+
+    function renderDimensions() {
+        dimsList.innerHTML = '';
+        currentMeta.dimensions.forEach(function(d) {
+            var row = document.createElement('div');
+            row.className = 'dim-row';
+            var sel = selectedDims.includes(d.name);
+            row.innerHTML = '<span>' + (sel ? '<b>' : '') + d.caption + (sel ? '</b>' : '') + '</span>'
+                          + '<button class="btn btn-sm">Filtrar</button>';
+            row.querySelector('span').addEventListener('click', function() {
+                toggleArr(selectedDims, d.name);
+                if (selectedDims.length === 0) selectedDims.push(d.name);
+                renderDimensions();
+            });
+            row.querySelector('button').addEventListener('click', function(e) {
+                e.stopPropagation();
+                openFilterModal(d.name, d.caption);
+            });
+            dimsList.appendChild(row);
+        });
+    }
+
+    function renderMeasures() {
+        measureChips.innerHTML = '';
+        currentMeta.measures.forEach(function(m) {
+            var chip = document.createElement('span');
+            chip.className = 'chip' + (selectedMeasures.includes(m.name) ? ' selected' : '');
+            chip.textContent = m.caption;
+            chip.addEventListener('click', function() {
+                toggleArr(selectedMeasures, m.name);
+                if (selectedMeasures.length === 0) selectedMeasures.push(m.name);
+                renderMeasures();
+            });
+            measureChips.appendChild(chip);
+        });
+    }
+
+    function renderFilters() {
+        filtersList.innerHTML = '';
+        var keys = Object.keys(activeFilters);
+        if (keys.length === 0) {
+            filtersList.innerHTML = '<div style="font-size:11px;color:var(--text-muted)">Sin filtros aplicados</div>';
+            return;
+        }
+        keys.forEach(function(dim) {
+            var dimMeta = currentMeta.dimensions.find(function(d) { return d.name === dim; });
+            var label = dimMeta ? dimMeta.caption : dim;
+            var wrap = document.createElement('div');
+            wrap.innerHTML = '<span style="font-size:11px;font-weight:600;">' + label + ':</span>';
+            var tags = document.createElement('div');
+            tags.className = 'filter-tags';
+            activeFilters[dim].forEach(function(code) {
+                var tag = document.createElement('span');
+                tag.className = 'filter-tag';
+                tag.innerHTML = code + ' <span class="remove">&times;</span>';
+                tag.querySelector('.remove').addEventListener('click', function() {
+                    activeFilters[dim] = activeFilters[dim].filter(function(c) { return c !== code; });
+                    if (activeFilters[dim].length === 0) delete activeFilters[dim];
+                    renderFilters();
+                });
+                tags.appendChild(tag);
+            });
+            wrap.appendChild(tags);
+            filtersList.appendChild(wrap);
+        });
+    }
+
+    async function openFilterModal(dimName, dimCaption) {
+        pendingDimName = dimName;
+        filterModalTitle.textContent = 'Filtrar: ' + dimCaption;
+        filterCheckList.innerHTML = '<li><span class="loader"></span></li>';
+        filterSearch.value = '';
+        filterModal.style.display = 'flex';
+
+        var ds = dsManager.getActive();
+        if (!ds) return;
+
+        try {
+            allDimValues = await ds.getDimensionValues(currentQuery, dimName);
+            renderCheckList();
+        } catch(e) {
+            filterCheckList.innerHTML = '<li style="color:var(--error)">' + e.message + '</li>';
+        }
+    }
+
+    function renderCheckList(filter) {
+        filterCheckList.innerHTML = '';
+        var current = activeFilters[pendingDimName] || [];
+        var lc = (filter || '').toLowerCase();
+
+        allDimValues.forEach(function(v) {
+            if (lc && !v.caption.toLowerCase().includes(lc) && !v.code.toLowerCase().includes(lc)) return;
+            var li = document.createElement('li');
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = v.code;
+            cb.checked = current.includes(v.code);
+            var lbl = document.createElement('label');
+            lbl.textContent = v.caption + ' (' + v.code + ')';
+            lbl.addEventListener('click', function() { cb.checked = !cb.checked; });
+            li.appendChild(cb);
+            li.appendChild(lbl);
+            filterCheckList.appendChild(li);
+        });
+    }
+
+    function applyFilterModal() {
+        var checks = filterCheckList.querySelectorAll('input[type="checkbox"]:checked');
+        var values = Array.from(checks).map(function(cb) { return cb.value; });
+        if (values.length > 0) {
+            activeFilters[pendingDimName] = values;
+        } else {
+            delete activeFilters[pendingDimName];
+        }
+        renderFilters();
+        filterModal.style.display = 'none';
+    }
+
+    async function executeQuery() {
+        var ds = dsManager.getActive();
+        if (!ds || !currentQuery) return;
+
+        btnExecute.disabled = true;
+        btnExecute.textContent = 'Ejecutando...';
+        statusMsg.textContent = '';
+
+        var filters = Object.keys(activeFilters).map(function(dim) {
+            return { dimension: dim, values: activeFilters[dim] };
+        });
+
+        try {
+            var result = await ds.executeQuery({
+                source: currentQuery,
+                dimensions: selectedDims,
+                measures: selectedMeasures,
+                filters: filters.length > 0 ? filters : undefined
+            });
+
+            var columns = result.columns.map(function(c) { return c.caption; });
+            var numFormat = localStorage.getItem('da_number_format') || 'EU';
+            var payload = { rows: result.data, columns: columns, numberFormat: numFormat };
+
+            if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
+                window.Asc.plugin.sendToPlugin('onInsertData', payload);
+            }
+
+            statusMsg.textContent = result.totalRows + ' filas insertadas';
+        } catch(e) {
+            statusMsg.textContent = 'Error: ' + e.message;
+        }
+
+        btnExecute.disabled = false;
+        btnExecute.textContent = 'Ejecutar';
+    }
+
+    function toggleArr(arr, val) {
+        var idx = arr.indexOf(val);
+        if (idx !== -1) arr.splice(idx, 1);
+        else arr.push(val);
+    }
+
+    // Event bindings
+    querySelect.addEventListener('change', loadMeta);
+    btnExecute.addEventListener('click', executeQuery);
+    filterSearch.addEventListener('input', function() { renderCheckList(this.value); });
+    document.getElementById('filterApply').addEventListener('click', applyFilterModal);
+    document.getElementById('filterCancel').addEventListener('click', function() { filterModal.style.display = 'none'; });
+    document.getElementById('filterSelAll').addEventListener('click', function() {
+        filterCheckList.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.checked = true; });
+    });
+    document.getElementById('filterSelNone').addEventListener('click', function() {
+        filterCheckList.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.checked = false; });
+    });
+
+    window.Asc.plugin.init = function() {
+        init();
+    };
+    window.Asc.plugin.button = function() {};
+    window.Asc.plugin.onExternalMouseUp = function() {};
+    window.Asc.plugin.onThemeChanged = function() {};
+})();
+</script>
+</body>
+</html>

@@ -6,11 +6,13 @@ CUSTOM_PLUGINS = [
     "{B1AACC00-EC30-4DA4-A400-AAAAAA1110C5}",  # BIW Data Connector
     "{B1AACC00-EC30-4DA4-A400-AAAAAA1110C6}",  # BIW Charts
     "{B1AACC00-EC30-4DA4-A400-AAAAAA1110C7}",  # Brain Bridge
+    "{B1AACC00-EC30-4DA4-A400-AAAAAA1110C8}",  # Data Analyzer
 ]
 
 AUTOSTART_GUIDS = [
     "asc.{B1AACC00-EC30-4DA4-A400-AAAAAA1110C5}",  # BIW background
     "asc.{B1AACC00-EC30-4DA4-A400-AAAAAA1110C7}",  # Brain Bridge background
+    "asc.{B1AACC00-EC30-4DA4-A400-AAAAAA1110C8}",  # Data Analyzer background
 ]
 
 local_json = Path("/etc/onlyoffice/documentserver/local.json")

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Importar Datos</title>
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="../v1/plugins.css">
+    <script type="text/javascript" src="scripts/mock-data.js?v=2"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=2"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=2"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=2"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 11px;
+            background: var(--background-normal, #fff);
+            color: var(--text-normal, #333);
+            padding: 12px;
+            overflow-y: auto;
+        }
+        .form-group { margin-bottom: 8px; }
+        .form-group label { display: block; margin-bottom: 3px; font-size: 10px; font-weight: 500; }
+        .form-group select { width: 100%; padding: 6px 8px; font-size: 11px; border: 1px solid #d9d9d9; border-radius: 3px; }
+        .queries-list {
+            border: 1px solid #d9d9d9; border-radius: 4px;
+            max-height: 90px; overflow-y: auto;
+            background: var(--background-toolbar, #f5f5f5);
+        }
+        .query-item {
+            padding: 6px 8px; border-bottom: 1px solid #d9d9d9;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .query-item:hover { background: rgba(68,104,147,0.1); }
+        .query-item.selected { background: rgba(68,104,147,0.2); border-left: 3px solid #446893; }
+        .query-item:last-child { border-bottom: none; }
+        .query-name { font-weight: 600; font-size: 11px; }
+        .query-desc { font-size: 9px; opacity: 0.7; }
+        .data-preview {
+            border: 1px solid #d9d9d9; border-radius: 4px;
+            max-height: 100px; overflow: auto; margin-bottom: 8px;
+        }
+        .preview-table { width: 100%; border-collapse: collapse; font-size: 9px; }
+        .preview-table th, .preview-table td {
+            padding: 4px 6px; border: 1px solid #d9d9d9; text-align: left; white-space: nowrap;
+        }
+        .preview-table th { background: #eee; font-weight: 600; }
+        .stats { font-size: 10px; margin-bottom: 6px; text-align: center; color: #666; }
+        .status-bar {
+            border: 1px solid #d9d9d9; border-radius: 4px; padding: 6px 8px;
+            margin-bottom: 8px; display: flex; align-items: center; gap: 6px; font-size: 10px;
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ff9800; }
+        .dot.ok { background: #4caf50; }
+        .dot.err { background: #f44336; }
+        .btn {
+            width: 100%; padding: 7px 12px; margin-bottom: 5px;
+            border: 1px solid #d9d9d9; border-radius: 3px;
+            font-size: 11px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; gap: 5px;
+        }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary { background: #446893; border-color: #446893; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #365a80; }
+        .footer { margin-top: 6px; text-align: center; font-size: 9px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="status-bar">
+        <div class="dot" id="dot"></div>
+        <span id="statusText">Conectando...</span>
+    </div>
+
+    <div class="form-group">
+        <label>Consultas disponibles:</label>
+        <div class="queries-list" id="queriesList">
+            <div style="padding:8px;text-align:center;color:#999">Cargando...</div>
+        </div>
+    </div>
+
+    <div id="errorContainer"></div>
+    <div class="stats" id="statsContainer"></div>
+
+    <div class="data-preview" id="dataPreview">
+        <div style="padding:8px;text-align:center;color:#999">Selecciona una query</div>
+    </div>
+
+    <button class="btn" id="btnExecute" disabled>▶ Ejecutar Query</button>
+    <button class="btn btn-primary" id="btnInsert" disabled>⬇ Insertar en Hoja</button>
+
+    <div class="footer">Data Analyzer v1.0.0</div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            var dsManager = new DataSourceManager();
+            if (dsManager.list().length === 0) dsManager.register(new MockDataSource());
+
+            var dot = document.getElementById('dot');
+            var statusText = document.getElementById('statusText');
+            var queriesList = document.getElementById('queriesList');
+            var btnExecute = document.getElementById('btnExecute');
+            var btnInsert = document.getElementById('btnInsert');
+            var dataPreview = document.getElementById('dataPreview');
+            var statsContainer = document.getElementById('statsContainer');
+
+            var selectedQuery = null;
+            var currentData = null;
+            var currentColumns = null;
+
+            async function init() {
+                var ds = dsManager.getActive();
+                if (!ds) return;
+                try {
+                    var info = await ds.getInfo();
+                    dot.className = 'dot ok';
+                    statusText.textContent = 'Conectado - ' + info.name;
+
+                    var sources = await ds.listSources();
+                    queriesList.innerHTML = '';
+                    sources.forEach(function(s, idx) {
+                        var div = document.createElement('div');
+                        div.className = 'query-item';
+                        div.dataset.idx = idx;
+                        div.dataset.name = s.name;
+                        div.innerHTML = '<div class="query-name">' + s.description + '</div>'
+                                      + '<div class="query-desc">' + (s.catalog || '') + '</div>';
+                        div.addEventListener('click', function() {
+                            queriesList.querySelectorAll('.query-item').forEach(function(i) { i.classList.remove('selected'); });
+                            div.classList.add('selected');
+                            selectedQuery = s;
+                            btnExecute.disabled = false;
+                            btnInsert.disabled = true;
+                            currentData = null;
+                            dataPreview.innerHTML = '<div style="padding:8px;text-align:center;color:#999">Click en "Ejecutar Query"</div>';
+                            statsContainer.textContent = '';
+                        });
+                        queriesList.appendChild(div);
+                    });
+                } catch(e) {
+                    dot.className = 'dot err';
+                    statusText.textContent = 'Error: ' + e.message;
+                }
+            }
+
+            async function executeQuery() {
+                if (!selectedQuery) return;
+                var ds = dsManager.getActive();
+                if (!ds) return;
+
+                btnExecute.disabled = true;
+                btnExecute.textContent = 'Ejecutando...';
+
+                try {
+                    var result = await ds.executeQuery({
+                        source: selectedQuery.name,
+                        dimensions: undefined,
+                        measures: undefined
+                    });
+
+                    currentData = result.data;
+                    currentColumns = result.columns.map(function(c) { return c.caption; });
+
+                    var headers = currentColumns;
+                    var html = '<table class="preview-table"><thead><tr>';
+                    headers.forEach(function(h) { html += '<th>' + h + '</th>'; });
+                    html += '</tr></thead><tbody>';
+                    result.data.slice(0, 4).forEach(function(row) {
+                        html += '<tr>';
+                        headers.forEach(function(h) {
+                            var val = row[h];
+                            if (typeof val === 'number') val = val.toLocaleString('es-ES');
+                            html += '<td>' + (val != null ? val : '-') + '</td>';
+                        });
+                        html += '</tr>';
+                    });
+                    if (result.data.length > 4) {
+                        html += '<tr><td colspan="' + headers.length + '" style="text-align:center;opacity:0.5">+' + (result.data.length - 4) + ' filas más</td></tr>';
+                    }
+                    html += '</tbody></table>';
+                    dataPreview.innerHTML = html;
+                    statsContainer.textContent = result.totalRows + ' filas × ' + headers.length + ' columnas';
+                    btnInsert.disabled = false;
+                } catch(e) {
+                    dataPreview.innerHTML = '<div style="padding:8px;color:red">' + e.message + '</div>';
+                }
+
+                btnExecute.disabled = false;
+                btnExecute.textContent = '▶ Ejecutar Query';
+            }
+
+            function insertData() {
+                if (!currentData || currentData.length === 0) return;
+
+                if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
+                    window.Asc.plugin.sendToPlugin("onInsertData", {
+                        rows: currentData,
+                        columns: currentColumns,
+                        numberFormat: 'EU'
+                    });
+                }
+            }
+
+            btnExecute.addEventListener('click', executeQuery);
+            btnInsert.addEventListener('click', insertData);
+
+            window.Asc.plugin.init = function() {
+                init();
+            };
+
+            window.Asc.plugin.button = function(id) {
+                if (id === 0 && currentData) insertData();
+                else if (id === 1 || id === -1) window.Asc.plugin.executeMethod("CloseWindow");
+            };
+
+            window.Asc.plugin.onExternalMouseUp = function() {};
+            window.Asc.plugin.onThemeChanged = function() {};
+        })();
+    </script>
+</body>
+</html>

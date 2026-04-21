@@ -1,0 +1,243 @@
+/* Data Analyzer — shared styles */
+:root {
+    --bg: #ffffff;
+    --bg-alt: #f7f8fa;
+    --bg-hover: #eef1f5;
+    --border: #dce0e6;
+    --text: #1e1e1e;
+    --text-muted: #6b7280;
+    --primary: #1e3a5f;
+    --primary-light: #2c5282;
+    --primary-bg: #ebf1fa;
+    --accent: #3182ce;
+    --success: #22c55e;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --radius: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.45;
+    overflow-y: auto;
+}
+
+.container { padding: 12px 14px; }
+
+/* ── Form elements ─────────────────────────────────────── */
+label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 3px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+select, input[type="text"], input[type="password"], input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border .15s;
+}
+
+select:focus, input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(49,130,206,.15);
+}
+
+.form-group { margin-bottom: 6px; }
+
+/* ── Buttons ───────────────────────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, border .15s;
+}
+.btn:hover { background: var(--bg-hover); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-primary {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.btn-primary:hover { background: var(--primary-light); }
+
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+
+/* ── Status badge ──────────────────────────────────────── */
+.status-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+.status-dot.ok { background: var(--success); }
+.status-dot.err { background: var(--error); }
+.status-dot.warn { background: var(--warning); }
+
+/* ── Section ───────────────────────────────────────────── */
+.section {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-alt);
+}
+.section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    letter-spacing: .03em;
+}
+
+/* ── Chips (for measures) ──────────────────────────────── */
+.chip-list { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .15s, border .15s;
+}
+.chip:hover { background: var(--bg-hover); }
+.chip.selected {
+    background: var(--primary-bg);
+    border-color: var(--accent);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* ── Table ─────────────────────────────────────────────── */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.data-table th {
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    text-align: left;
+    padding: 6px 8px;
+    white-space: nowrap;
+}
+.data-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+}
+.data-table tr:nth-child(even) td { background: var(--bg-alt); }
+.data-table tr:hover td { background: var(--bg-hover); }
+
+/* ── Query list ────────────────────────────────────────── */
+.query-list { list-style: none; max-height: 90px; overflow-y: auto; }
+.query-list li {
+    padding: 6px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background .12s;
+}
+.query-list li:hover { background: var(--bg-hover); }
+.query-list li.active {
+    background: var(--primary-bg);
+    border-left: 3px solid var(--accent);
+    font-weight: 600;
+}
+.query-list li .catalog {
+    font-size: 10px;
+    color: var(--text-muted);
+    display: block;
+}
+
+/* ── Preview container ─────────────────────────────────── */
+.preview-wrap {
+    max-height: 100px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+/* ── Footer ────────────────────────────────────────────── */
+.footer {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: right;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    margin-top: 10px;
+}
+
+/* ── Loader ────────────────────────────────────────────── */
+.loader {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Modal overlay (for filters) ───────────────────────── */
+.modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+}
+.modal-box {
+    background: var(--bg);
+    border-radius: var(--radius);
+    padding: 16px;
+    width: 320px;
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 8px 30px rgba(0,0,0,.18);
+}
+.modal-box h3 {
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+.modal-box .actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+/* ── Checkbox list ─────────────────────────────────────── */
+.check-list { list-style: none; max-height: 220px; overflow-y: auto; }
+.check-list li {
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.check-list li label { font-weight: 400; margin-bottom: 0; cursor: pointer; }

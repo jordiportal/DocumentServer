@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Data Analyzer</title>
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link  rel="stylesheet" href="../v1/plugins.css">
+    <link  rel="stylesheet" href="styles/main.css">
+    <style>
+        .sidebar-btn {
+            display: flex; align-items: center; gap: 8px;
+            width: 100%; padding: 10px 12px; margin-bottom: 6px;
+            border: 1px solid var(--border); border-radius: var(--radius);
+            background: var(--bg); cursor: pointer; transition: background .15s;
+            font-size: 13px; text-align: left;
+        }
+        .sidebar-btn:hover { background: var(--bg-hover); }
+        .sidebar-btn .icon { font-size: 18px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div style="font-size:15px;font-weight:700;margin-bottom:12px;">Data Analyzer</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">
+        Importa y analiza datos desde múltiples orígenes directamente en tu hoja de cálculo.
+    </p>
+
+    <button class="sidebar-btn" id="btnImport">
+        <span class="icon">📊</span>
+        <span>Importar Datos</span>
+    </button>
+    <button class="sidebar-btn" id="btnFilters">
+        <span class="icon">🔍</span>
+        <span>Filtros</span>
+    </button>
+    <button class="sidebar-btn" id="btnSettings">
+        <span class="icon">⚙️</span>
+        <span>Configuración</span>
+    </button>
+
+    <div class="footer">v1.0.0</div>
+</div>
+<script>
+(function() {
+    if (!window.Asc || !window.Asc.plugin) return;
+
+    window.Asc.plugin.init = function() {};
+    window.Asc.plugin.button = function() {};
+    window.Asc.plugin.onExternalMouseUp = function() {};
+    window.Asc.plugin.onThemeChanged = function() {};
+
+    document.getElementById('btnImport').addEventListener('click', function() {
+        window.Asc.plugin.executeMethod('ToolbarMenuClick', ['da-import']);
+    });
+    document.getElementById('btnFilters').addEventListener('click', function() {
+        window.Asc.plugin.executeMethod('ToolbarMenuClick', ['da-filters']);
+    });
+    document.getElementById('btnSettings').addEventListener('click', function() {
+        window.Asc.plugin.executeMethod('ToolbarMenuClick', ['da-settings']);
+    });
+})();
+</script>
+</body>
+</html>

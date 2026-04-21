@@ -12,6 +12,9 @@ COPY plugins/{B1AACC00-EC30-4DA4-A400-AAAAAA1110C6} \
 COPY plugins/{B1AACC00-EC30-4DA4-A400-AAAAAA1110C7} \
      /var/www/onlyoffice/documentserver/sdkjs-plugins/{B1AACC00-EC30-4DA4-A400-AAAAAA1110C7}
 
+COPY plugins/{B1AACC00-EC30-4DA4-A400-AAAAAA1110C8} \
+     /var/www/onlyoffice/documentserver/sdkjs-plugins/{B1AACC00-EC30-4DA4-A400-AAAAAA1110C8}
+
 COPY plugins/register-plugins.py /tmp/register-plugins.py
 RUN python3 /tmp/register-plugins.py && rm /tmp/register-plugins.py
 

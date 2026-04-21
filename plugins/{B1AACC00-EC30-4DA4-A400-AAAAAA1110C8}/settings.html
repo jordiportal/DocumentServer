@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Configuración</title>
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link  rel="stylesheet" href="../v1/plugins.css">
+    <script type="text/javascript" src="scripts/mock-data.js"></script>
+    <script type="text/javascript" src="scripts/datasource.js"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js"></script>
+    <link  rel="stylesheet" href="styles/main.css">
+    <style>
+        .source-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+        .source-table th { text-align: left; padding: 5px 6px; background: var(--bg-alt); border-bottom: 1px solid var(--border); }
+        .source-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); }
+        .source-table tr:hover td { background: var(--bg-hover); }
+        .edit-form { margin-top: 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-alt); }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Sources table -->
+    <div class="section">
+        <div class="section-title">Orígenes configurados</div>
+        <table class="source-table">
+            <thead><tr><th>Nombre</th><th>Tipo</th><th>URL</th><th>Estado</th></tr></thead>
+            <tbody id="sourcesBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Add / Edit form -->
+    <div class="edit-form">
+        <div class="section-title" id="formTitle">Añadir origen</div>
+        <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="srcName" placeholder="Mi BIW Producción">
+        </div>
+        <div class="form-group">
+            <label>Tipo</label>
+            <select id="srcType">
+                <option value="mock">Mock (Demo)</option>
+                <option value="biw">BIW</option>
+                <option value="databricks">Databricks</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>URL base</label>
+            <input type="text" id="srcUrl" placeholder="http://localhost:3000">
+        </div>
+        <div class="form-group">
+            <label>API Key</label>
+            <input type="password" id="srcApiKey" placeholder="Bearer token">
+        </div>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+            <button class="btn btn-sm btn-primary" id="btnAddSrc">Añadir</button>
+            <button class="btn btn-sm" id="btnCancelEdit" style="display:none;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Number format -->
+    <div class="section" style="margin-top:12px;">
+        <div class="section-title">Formato numérico</div>
+        <div class="form-group">
+            <select id="numFormat">
+                <option value="EU">Europeo (1.234,56)</option>
+                <option value="US">Americano (1,234.56)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="footer">Data Analyzer v1.0.0</div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    var STORAGE_KEY = 'data_analyzer_sources';
+
+    var sourcesBody  = document.getElementById('sourcesBody');
+    var formTitle    = document.getElementById('formTitle');
+    var srcName      = document.getElementById('srcName');
+    var srcType      = document.getElementById('srcType');
+    var srcUrl       = document.getElementById('srcUrl');
+    var srcApiKey    = document.getElementById('srcApiKey');
+    var btnAdd       = document.getElementById('btnAddSrc');
+    var btnCancel    = document.getElementById('btnCancelEdit');
+    var numFormatSel = document.getElementById('numFormat');
+
+    var editingName  = null;
+
+    numFormatSel.value = localStorage.getItem('da_number_format') || 'EU';
+
+    function loadConfigs() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch(e) { return []; }
+    }
+
+    function saveConfigs(configs) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(configs));
+    }
+
+    function renderTable() {
+        var configs = loadConfigs();
+        sourcesBody.innerHTML = '';
+        if (configs.length === 0) {
+            sourcesBody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted)">Sin orígenes configurados</td></tr>';
+            return;
+        }
+        configs.forEach(function(c) {
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td><b>' + esc(c.name) + '</b></td>'
+                         + '<td>' + esc(c.type) + '</td>'
+                         + '<td style="font-size:11px;">' + esc(c.baseUrl || '-') + '</td>'
+                         + '<td><span class="status-dot ok"></span></td>';
+            tr.style.cursor = 'pointer';
+            tr.addEventListener('click', function() { startEdit(c); });
+            sourcesBody.appendChild(tr);
+        });
+    }
+
+    function startEdit(config) {
+        editingName = config.name;
+        formTitle.textContent = 'Editar: ' + config.name;
+        srcName.value = config.name;
+        srcType.value = config.type;
+        srcUrl.value = config.baseUrl || '';
+        srcApiKey.value = config.apiKey || '';
+        btnAdd.textContent = 'Guardar';
+        btnCancel.style.display = '';
+    }
+
+    function cancelEdit() {
+        editingName = null;
+        formTitle.textContent = 'Añadir origen';
+        srcName.value = '';
+        srcType.value = 'mock';
+        srcUrl.value = '';
+        srcApiKey.value = '';
+        btnAdd.textContent = 'Añadir';
+        btnCancel.style.display = 'none';
+    }
+
+    function addOrUpdate() {
+        var name = srcName.value.trim();
+        if (!name) { alert('El nombre es obligatorio.'); return; }
+
+        var configs = loadConfigs();
+        var entry = {
+            name: name,
+            type: srcType.value,
+            baseUrl: srcUrl.value.trim(),
+            apiKey: srcApiKey.value
+        };
+
+        if (editingName) {
+            var idx = configs.findIndex(function(c) { return c.name === editingName; });
+            if (idx !== -1) configs[idx] = entry;
+            else configs.push(entry);
+        } else {
+            if (configs.some(function(c) { return c.name === name; })) {
+                alert('Ya existe un origen con ese nombre.'); return;
+            }
+            configs.push(entry);
+        }
+
+        saveConfigs(configs);
+        renderTable();
+        cancelEdit();
+    }
+
+    function saveAll() {
+        localStorage.setItem('da_number_format', numFormatSel.value);
+    }
+
+    function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+
+    btnAdd.addEventListener('click', addOrUpdate);
+    btnCancel.addEventListener('click', cancelEdit);
+
+    window.Asc.plugin.init = function() {
+        renderTable();
+    };
+    window.Asc.plugin.button = function(id) {
+        if (id === 0) saveAll();
+        window.Asc.plugin.executeMethod('CloseWindow');
+    };
+    window.Asc.plugin.onExternalMouseUp = function() {};
+    window.Asc.plugin.onThemeChanged = function() {};
+})();
+</script>
+</body>
+</html>
