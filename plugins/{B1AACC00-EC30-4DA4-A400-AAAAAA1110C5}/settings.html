@@ -227,7 +227,7 @@
     <div class="container">
         <div class="header">
             <h1>⚙️ Configuración BIW</h1>
-            <div class="version">v3.9.12</div>
+            <div class="version">v3.9.15</div>
         </div>
         
         <!-- Conexión -->
@@ -235,8 +235,13 @@
             <div class="section-title"><span class="icon">🔌</span> Conexión</div>
             <div class="form-group">
                 <label>URL del Servidor</label>
-                <input type="text" id="serverUrl" class="form-control" placeholder="http://localhost:3001">
+                <input type="text" id="serverUrl" class="form-control" placeholder="http://localhost:3000">
                 <div class="hint">Dirección del proxy BIW (incluir http:// o https://)</div>
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" id="apiKey" class="form-control" placeholder="Token de autenticación Bearer">
+                <div class="hint">Token para autenticarse con el proxy (ver /api-docs)</div>
             </div>
             <div class="form-group">
                 <label>Timeout (segundos)</label>
@@ -326,7 +331,8 @@
             const CONFIG_KEY = 'biw_config';
             
             const defaults = {
-                serverUrl: 'http://localhost:3001',
+                serverUrl: 'http://localhost:3000',
+                apiKey: '',
                 timeout: 60,
                 numberFormat: 'EU',
                 dateFormat: 'DD/MM/YYYY',
@@ -353,6 +359,7 @@
             function saveConfig() {
                 const config = {
                     serverUrl: $('serverUrl').value || defaults.serverUrl,
+                    apiKey: $('apiKey').value || '',
                     timeout: parseInt($('timeout').value) || defaults.timeout,
                     numberFormat: $('numberFormat').value,
                     dateFormat: $('dateFormat').value,
@@ -364,9 +371,9 @@
                 
                 try {
                     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-                    // También guardar individualmente para compatibilidad
                     localStorage.setItem('biw_number_format', config.numberFormat);
                     localStorage.setItem('biw_server_url', config.serverUrl);
+                    localStorage.setItem('biw_api_key', config.apiKey);
                     
                     showStatus('✓ Configuración guardada', 'success');
                     
@@ -382,6 +389,7 @@
             // Aplicar configuración a la UI
             function applyConfigToUI(config) {
                 $('serverUrl').value = config.serverUrl;
+                $('apiKey').value = config.apiKey || '';
                 $('timeout').value = config.timeout;
                 $('numberFormat').value = config.numberFormat;
                 $('dateFormat').value = config.dateFormat;

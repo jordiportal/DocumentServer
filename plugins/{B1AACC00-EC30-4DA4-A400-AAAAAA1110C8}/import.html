@@ -6,10 +6,11 @@
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <script type="text/javascript" src="../v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="../v1/plugins.css">
-    <script type="text/javascript" src="scripts/mock-data.js?v=2"></script>
-    <script type="text/javascript" src="scripts/datasource.js?v=2"></script>
-    <script type="text/javascript" src="scripts/mock-datasource.js?v=2"></script>
-    <script type="text/javascript" src="scripts/datasource-manager.js?v=2"></script>
+    <script type="text/javascript" src="scripts/mock-data.js?v=5"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=5"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=5"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=5"></script>
+    <script type="text/javascript" src="scripts/pivot-config.js?v=5"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -89,7 +90,7 @@
     <button class="btn" id="btnExecute" disabled>▶ Ejecutar Query</button>
     <button class="btn btn-primary" id="btnInsert" disabled>⬇ Insertar en Hoja</button>
 
-    <div class="footer">Data Analyzer v1.0.0</div>
+    <div class="footer">Data Analyzer v2.1.0</div>
 
     <script>
         (function() {
@@ -145,6 +146,8 @@
                 }
             }
 
+            var currentMetadata = null;
+
             async function executeQuery() {
                 if (!selectedQuery) return;
                 var ds = dsManager.getActive();
@@ -154,6 +157,8 @@
                 btnExecute.textContent = 'Ejecutando...';
 
                 try {
+                    currentMetadata = await ds.getMetadata(selectedQuery.name);
+
                     var result = await ds.executeQuery({
                         source: selectedQuery.name,
                         dimensions: undefined,
@@ -194,11 +199,22 @@
             function insertData() {
                 if (!currentData || currentData.length === 0) return;
 
+                var pivotCfg = null;
+                if (selectedQuery && currentMetadata) {
+                    var cfg = PivotConfig.fromMetadata(
+                        selectedQuery.name,
+                        selectedQuery.description,
+                        currentMetadata
+                    );
+                    pivotCfg = cfg.toJSON();
+                }
+
                 if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
                     window.Asc.plugin.sendToPlugin("onInsertData", {
                         rows: currentData,
                         columns: currentColumns,
-                        numberFormat: 'EU'
+                        numberFormat: 'EU',
+                        pivotConfig: pivotCfg
                     });
                 }
             }

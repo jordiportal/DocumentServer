@@ -8,13 +8,31 @@
 (function(window, undefined) {
     'use strict';
 
-    const VERSION = "3.9.14";
+    const VERSION = "3.9.15";
     const PLUGIN_NAME = "BIW";
-    const SERVER_URL = "http://localhost:3001";
+    
+    // Configuración de conexión (cargada desde localStorage/settings)
+    let SERVER_URL = localStorage.getItem('biw_server_url') || "http://localhost:3000";
+    let API_KEY = localStorage.getItem('biw_api_key') || "";
     
     // Configuración de formato numérico (europeo por defecto)
     // 'EU' = 1.234,56 | 'US' = 1,234.56
     let numberFormat = localStorage.getItem('biw_number_format') || 'EU';
+    
+    /**
+     * Fetch autenticado con Bearer token
+     */
+    function authenticatedFetch(url, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(options.headers || {})
+        };
+        if (API_KEY) {
+            headers['Authorization'] = `Bearer ${API_KEY}`;
+        }
+        return fetch(url, { ...options, headers });
+    }
     
     // Referencias a ventanas activas
     let importWindow = null;
@@ -750,26 +768,21 @@
      */
     async function loadRatioHierarchy(queryName) {
         try {
-            const res = await fetch(`${SERVER_URL}/api/bw-query/ratio-hierarchy/${queryName}`);
+            const encoded = encodeURIComponent(queryName);
+            const res = await authenticatedFetch(`${SERVER_URL}/api/bi/queries/${encoded}/metadata`);
             if (!res.ok) return;
             
             const data = await res.json();
-            if (data.hierarchy) {
+            // Build hierarchy from measures metadata
+            if (data.measures && data.measures.length > 0) {
                 lastQueryState.hierarchyMap = {};
-                data.hierarchy.forEach(h => {
-                    lastQueryState.hierarchyMap[h.uid] = {
-                        expandable: h.expandable === 1 || h.hasChildren,
+                data.measures.forEach(m => {
+                    lastQueryState.hierarchyMap[m.name] = {
+                        expandable: false,
                         children: [],
-                        parentUid: h.parent_uid || null,
-                        caption: h.caption
+                        parentUid: null,
+                        caption: m.caption || m.description || m.name
                     };
-                });
-                // Asignar hijos a padres
-                Object.keys(lastQueryState.hierarchyMap).forEach(uid => {
-                    const parentUid = lastQueryState.hierarchyMap[uid].parentUid;
-                    if (parentUid && lastQueryState.hierarchyMap[parentUid]) {
-                        lastQueryState.hierarchyMap[parentUid].children.push(uid);
-                    }
                 });
             }
         } catch(e) {
@@ -965,12 +978,11 @@
         console.log(`[${PLUGIN_NAME}] Re-ejecutando query con ${lastQueryState.selectedKeyFigures.length} key figures`);
         
         try {
-            const res = await fetch(`${SERVER_URL}/api/bw-query/execute-mdx`, {
+            const res = await authenticatedFetch(`${SERVER_URL}/api/bi/query`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    queryName: lastQueryState.queryName,
-                    selectedKeyFigures: lastQueryState.selectedKeyFigures
+                    query: lastQueryState.queryName,
+                    measures: lastQueryState.selectedKeyFigures
                 })
             });
             

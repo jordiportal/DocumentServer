@@ -274,7 +274,11 @@
 
     <div class="form-group">
         <label>Servidor:</label>
-        <input type="text" id="serverUrl" value="http://localhost:3001">
+        <input type="text" id="serverUrl" value="http://localhost:3000">
+    </div>
+    <div class="form-group">
+        <label>API Key:</label>
+        <input type="password" id="apiKey" placeholder="Bearer token">
     </div>
 
     <div class="form-group">
@@ -299,7 +303,7 @@
         ⬇️ Insertar en Hoja
     </button>
 
-    <div class="footer">BIW Data Connector v3.9.14</div>
+    <div class="footer">BIW Data Connector v3.9.15</div>
 
     <div id="loader-container" class="hidden">
         <div class="loader-spinner"></div>
@@ -341,14 +345,8 @@
                 };
             }
             
-            // Queries BW disponibles
-            const AVAILABLE_QUERIES = [
-                {
-                    name: 'MKT_CUENTA_RES_CP_OPT_DPCT',
-                    displayName: 'Cuenta de Resultados',
-                    description: 'Márgenes comerciales por versión (Real, Objetivo, Previsión)'
-                }
-            ];
+            // Queries BW disponibles (se cargan dinámicamente desde el proxy)
+            const AVAILABLE_QUERIES = [];
             
             let selectedQuery = null;
             let currentData = null;
@@ -361,11 +359,27 @@
             const btnExecute = $('btnExecute');
             const btnInsert = $('btnInsert');
             const serverUrl = $('serverUrl');
+            const apiKeyInput = $('apiKey');
             const errorContainer = $('errorContainer');
             const dataPreview = $('dataPreview');
             const statsContainer = $('statsContainer');
             const loaderContainer = $('loader-container');
             const loaderText = $('loaderText');
+            
+            // Cargar configuración persistida
+            try {
+                const savedUrl = localStorage.getItem('biw_server_url');
+                const savedKey = localStorage.getItem('biw_api_key');
+                if (savedUrl) serverUrl.value = savedUrl;
+                if (savedKey) apiKeyInput.value = savedKey;
+            } catch(e) {}
+            
+            function authHeaders() {
+                const headers = { 'Content-Type': 'application/json' };
+                const key = apiKeyInput.value.trim();
+                if (key) headers['Authorization'] = `Bearer ${key}`;
+                return headers;
+            }
             
             function showLoader(text) {
                 loaderText.textContent = text || 'Cargando...';
@@ -390,20 +404,54 @@
                 statusText.textContent = 'Conectando...';
                 clearError();
                 
+                // Persistir configuración
                 try {
-                    const response = await fetch(url + '/api/bw-query/service-info');
+                    localStorage.setItem('biw_server_url', url);
+                    localStorage.setItem('biw_api_key', apiKeyInput.value.trim());
+                } catch(e) {}
+                
+                try {
+                    const response = await fetch(url + '/health', { headers: authHeaders() });
                     if (!response.ok) throw new Error('Servicio no disponible');
                     
                     const info = await response.json();
                     statusIndicator.className = 'status-indicator connected';
-                    statusText.textContent = 'Conectado - ' + info.name;
-                    renderQueries();
+                    statusText.textContent = 'Conectado - ' + (info.service || 'Proxy BIW');
+                    await loadQueries();
                     
                 } catch (error) {
                     statusIndicator.className = 'status-indicator error';
                     statusText.textContent = 'Sin conexión';
                     showError(error.message);
                     queriesList.innerHTML = '<div class="loading-text">❌ Error de conexión</div>';
+                }
+            }
+            
+            async function loadQueries() {
+                try {
+                    const url = serverUrl.value.trim();
+                    const response = await fetch(url + '/api/bi/queries', { headers: authHeaders() });
+                    if (!response.ok) throw new Error('Error cargando queries');
+                    const data = await response.json();
+                    const queries = data.queries || [];
+                    
+                    if (queries.length === 0) {
+                        renderQueries();
+                        return;
+                    }
+                    
+                    AVAILABLE_QUERIES.length = 0;
+                    queries.forEach(q => {
+                        AVAILABLE_QUERIES.push({
+                            name: q.name,
+                            displayName: q.description || q.name,
+                            description: q.catalog ? `Catálogo: ${q.catalog}` : ''
+                        });
+                    });
+                    renderQueries();
+                } catch(e) {
+                    console.warn('[BIW] Error cargando queries dinámicas, usando lista estática:', e.message);
+                    renderQueries();
                 }
             }
             
@@ -439,24 +487,32 @@
                 
                 try {
                     // Cargar configuración guardada por el panel de filtros
-                    let queryConfig = { queryName: selectedQuery.name };
+                    let queryConfig = { query: selectedQuery.name };
                     try {
                         const savedConfig = localStorage.getItem('biw_query_config');
                         if (savedConfig) {
                             const config = JSON.parse(savedConfig);
-                            if (config.queryName === selectedQuery.name) {
-                                queryConfig = config;
+                            if (config.query === selectedQuery.name || config.queryName === selectedQuery.name) {
+                                queryConfig = {
+                                    query: selectedQuery.name,
+                                    measures: config.measures || config.selectedKeyFigures,
+                                    dimension: config.dimension,
+                                    filters: config.filters
+                                };
                             }
                         }
                     } catch(e) {}
                     
-                    const response = await fetch(url + '/api/bw-query/execute-mdx', {
+                    const response = await fetch(url + '/api/bi/query', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders(),
                         body: JSON.stringify(queryConfig)
                     });
                     
-                    if (!response.ok) throw new Error('Error ' + response.status);
+                    if (!response.ok) {
+                        const errBody = await response.json().catch(() => ({}));
+                        throw new Error(errBody.details || errBody.error || 'Error ' + response.status);
+                    }
                     
                     const result = await response.json();
                     
@@ -543,6 +599,7 @@
             btnExecute.addEventListener('click', executeQuery);
             btnInsert.addEventListener('click', insertData);
             serverUrl.addEventListener('change', connect);
+            apiKeyInput.addEventListener('change', connect);
         })();
     </script>
 </body>

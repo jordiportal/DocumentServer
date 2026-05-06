@@ -4,7 +4,13 @@
 			"path": "."
 		},
 		{
-			"path": "../proxy-biw/btp-app"
+			"path": "../brain-onlyoffice-mcp"
+		},
+		{
+			"path": "../proxy-biw"
+		},
+		{
+			"path": "../brain"
 		}
 	],
 	"settings": {}

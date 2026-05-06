@@ -610,7 +610,14 @@
         (function() {
             'use strict';
             
-            const SERVER_URL = 'http://localhost:3001';
+            const SERVER_URL = localStorage.getItem('biw_server_url') || 'http://localhost:3000';
+            const API_KEY = localStorage.getItem('biw_api_key') || '';
+            
+            function authHeaders() {
+                const h = { 'Content-Type': 'application/json' };
+                if (API_KEY) h['Authorization'] = `Bearer ${API_KEY}`;
+                return h;
+            }
             
             let currentQuery = null;
             let dimensions = { rows: [], columns: [], available: [] };
@@ -667,13 +674,19 @@
                 showLoader('Conectando...');
                 
                 try {
-                    const res = await fetch(SERVER_URL + '/health');
+                    const res = await fetch(SERVER_URL + '/health', { headers: authHeaders() });
                     if (!res.ok) throw new Error('Servidor no disponible');
                     
-                    querySelect.innerHTML = `
-                        <option value="">Selecciona query...</option>
-                        <option value="MKT_CUENTA_RES_CP_OPT_DPCT">Cuenta de Resultados</option>
-                    `;
+                    // Cargar queries dinámicamente desde el proxy
+                    const qRes = await fetch(SERVER_URL + '/api/bi/queries', { headers: authHeaders() });
+                    let options = '<option value="">Selecciona query...</option>';
+                    if (qRes.ok) {
+                        const qData = await qRes.json();
+                        (qData.queries || []).forEach(q => {
+                            options += `<option value="${q.name}">${q.description || q.name}</option>`;
+                        });
+                    }
+                    querySelect.innerHTML = options;
                     
                     hideLoader();
                     setStatus('Selecciona una query');
@@ -691,15 +704,17 @@
                 currentQuery = queryName;
                 
                 try {
-                    // Cargar datos de la query y jerarquía en paralelo
+                    const encoded = encodeURIComponent(queryName);
+                    // Cargar metadata de la query (dimensiones y medidas)
                     const [queryRes, hierarchyRes] = await Promise.all([
-                        fetch(SERVER_URL + '/api/bw-query/execute', {
+                        fetch(SERVER_URL + '/api/bi/query', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ queryName })
+                            headers: authHeaders(),
+                            body: JSON.stringify({ query: queryName })
                         }),
-                        fetch(SERVER_URL + '/api/bw-query/ratio-hierarchy/' + queryName)
-                            .catch(() => ({ ok: false }))  // Ignorar error si no existe
+                        fetch(SERVER_URL + '/api/bi/queries/' + encoded + '/metadata', {
+                            headers: authHeaders()
+                        }).catch(() => ({ ok: false }))
                     ]);
                     
                     if (!queryRes.ok) throw new Error('Error cargando');
@@ -924,11 +939,18 @@
                 );
                 
                 try {
-                    const res = await fetch(`${SERVER_URL}/api/bw-query/dimension-members/${currentQuery}/${dim.name}`);
+                    const qEnc = encodeURIComponent(currentQuery);
+                    const dEnc = encodeURIComponent(dim.name);
+                    const res = await fetch(`${SERVER_URL}/api/bi/queries/${qEnc}/dimension-values/${dEnc}`, {
+                        headers: authHeaders()
+                    });
                     if (!res.ok) throw new Error('Error cargando valores');
                     const data = await res.json();
                     
-                    modalValues = data.members || [];
+                    modalValues = (data.values || []).map(v => ({
+                        key: v.key || v.name || v,
+                        text: v.text || v.caption || v.description || v.key || v.name || String(v)
+                    }));
                     renderModalValues();
                     
                 } catch (e) {
@@ -1145,19 +1167,25 @@
                 const colDimsFiltered = dimensions.columns.filter(d => !d.isMeasures && d.name !== 'Measures').map(d => d.name);
                 
                 const config = {
+                    query: currentQuery,
                     queryName: currentQuery,
+                    measures: Array.from(selectedMetrics),
+                    selectedKeyFigures: Array.from(selectedMetrics),
+                    dimension: rowDimsFiltered[0] || null,
+                    filters: filtersArray.reduce((acc, f) => {
+                        acc[f.dimension] = f.values.length === 1 ? f.values[0] : f.values;
+                        return acc;
+                    }, {}),
                     rowDimensions: rowDimsFiltered,
                     columnDimensions: colDimsFiltered,
-                    selectedKeyFigures: Array.from(selectedMetrics),
-                    filters: filtersArray,
                     measuresOnRows: measuresInRows,
-                    measuresPosition: measuresPosition  // Posición de Measures en su eje (0 = primero)
+                    measuresPosition: measuresPosition
                 };
                 
                 try {
-                    const res = await fetch(SERVER_URL + '/api/bw-query/execute-mdx', {
+                    const res = await fetch(SERVER_URL + '/api/bi/query', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders(),
                         body: JSON.stringify(config)
                     });
                     
