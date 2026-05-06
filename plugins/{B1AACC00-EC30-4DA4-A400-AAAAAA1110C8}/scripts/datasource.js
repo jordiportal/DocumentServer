@@ -42,7 +42,10 @@
 
         /**
          * @param {string} sourceName
-         * @returns {Promise<{dimensions:Array<{name:string,caption:string}>, measures:Array<{name:string,caption:string,dataType?:string}>}>}
+         * @returns {Promise<{dimensions:Array<{name:string,caption:string}>, measures:Array<{name:string,caption:string,dataType?:string,unit?:string,decimals?:number}>}>}
+         *
+         * measure.unit     — Unit code: 'EUR'|'USD'|'GBP'|'%'|'uds'|'kg'|'h'|...
+         * measure.decimals — Number of decimal places (default 2; use 0 for integers)
          */
         async getMetadata(sourceName) {
             throw new Error('getMetadata() not implemented');

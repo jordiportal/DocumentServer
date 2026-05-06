@@ -1,104 +1,26 @@
 /**
  * SheetWriter — Writes query results into the active spreadsheet.
- * v2.1: Cross-tab (pivot) support, extended metadata, auto-persistence, sort.
+ * v2.2: Unit support via SetNumberFormat, real numeric cell values.
  *
  * Usage (from background.js):
- *   SheetWriter.insert(rows, { columns, numberFormat, pivotConfig, callback });
- *   SheetWriter.insertCrossTab(crossTab, { numberFormat, pivotConfig, callback });
+ *   SheetWriter.insert(rows, { columns, columnFormats, pivotConfig, callback });
+ *   SheetWriter.insertCrossTab(crossTab, { pivotConfig, callback });
  */
 
 (function(window) {
     'use strict';
 
-    // Shared helpers used inside callCommand (must be self-contained)
-    var HELPERS_SRC = [
-        'function formatNumber(value, numFormat) {',
-        '    if (value === null || value === undefined || value === "") return "";',
-        '    var num = parseFloat(value);',
-        '    if (isNaN(num)) return value;',
-        '    if (numFormat === "EU") {',
-        '        var parts = num.toFixed(2).split(".");',
-        '        parts[0] = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, ".");',
-        '        return parts.join(",");',
-        '    }',
-        '    return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });',
-        '}',
-        'function isNum(v) {',
-        '    if (v === null || v === undefined || v === "") return false;',
-        '    return !isNaN(parseFloat(v)) && isFinite(v);',
-        '}',
-        'function colToLetter(col) {',
-        '    var letter = "";',
-        '    var temp = col;',
-        '    while (temp >= 0) {',
-        '        letter = String.fromCharCode((temp % 26) + 65) + letter;',
-        '        temp = Math.floor(temp / 26) - 1;',
-        '    }',
-        '    return letter;',
-        '}'
-    ].join('\n');
-
-    // =====================================================================
-    // CLEAR + META helpers (executed inside callCommand context)
-    // =====================================================================
-
-    function clearPreviousArea(oSheet, metaSheet, sheetName) {
-        if (!metaSheet) return;
-        var prevRows = 0, prevCols = 0;
-        for (var i = 0; i < 100; i++) {
-            var s = metaSheet.GetRangeByNumber(i, 0).GetValue();
-            if (s === sheetName) {
-                prevRows = parseInt(metaSheet.GetRangeByNumber(i, 1).GetValue()) || 0;
-                prevCols = parseInt(metaSheet.GetRangeByNumber(i, 2).GetValue()) || 0;
-                break;
-            }
-            if (!s || s === '') break;
-        }
-        if (prevRows > 0 && prevCols > 0) {
-            var letter = '';
-            var temp = prevCols - 1;
-            while (temp >= 0) {
-                letter = String.fromCharCode((temp % 26) + 65) + letter;
-                temp = Math.floor(temp / 26) - 1;
-            }
-            var clearRange = oSheet.GetRange('A1:' + letter + prevRows);
-            if (clearRange) {
-                clearRange.SetValue('');
-                clearRange.SetFillColor('No Fill');
-                clearRange.SetFontColor(Api.CreateColorFromRGB(0, 0, 0));
-                clearRange.SetBold(false);
-                clearRange.SetItalic(false);
-            }
-        }
-    }
-
-    function writeMeta(metaSheet, sheetName, numRows, numCols, pivotJSON) {
-        if (!metaSheet) return;
-        var metaRow = -1, emptyRow = -1;
-        for (var i = 0; i < 100; i++) {
-            var s = metaSheet.GetRangeByNumber(i, 0).GetValue();
-            if (s === sheetName) { metaRow = i; break; }
-            if ((!s || s === '') && emptyRow === -1) emptyRow = i;
-        }
-        if (metaRow === -1) metaRow = (emptyRow !== -1) ? emptyRow : 0;
-        metaSheet.GetRangeByNumber(metaRow, 0).SetValue(sheetName);
-        metaSheet.GetRangeByNumber(metaRow, 1).SetValue(numRows);
-        metaSheet.GetRangeByNumber(metaRow, 2).SetValue(numCols);
-        metaSheet.GetRangeByNumber(metaRow, 3).SetValue(pivotJSON);
-    }
-
-    function persistDocProps(sheetName, pivotJSON) {
-        // Persistence handled via _AnalysisMeta sheet
-    }
-
-    function getOrCreateMetaSheet() {
-        var metaSheet = Api.GetSheet('_AnalysisMeta');
-        if (!metaSheet) {
-            Api.AddSheet('_AnalysisMeta');
-            metaSheet = Api.GetSheet('_AnalysisMeta');
-            if (metaSheet) metaSheet.SetVisible(false);
-        }
-        return metaSheet;
+    /**
+     * Build Excel format string from a column format definition.
+     * Uses [$-C0A] locale prefix to force Spanish (European) number display.
+     */
+    function buildFmtStr(fmt) {
+        var d = fmt.decimals != null ? fmt.decimals : 2;
+        var dec = d > 0 ? '.' + new Array(d + 1).join('0') : '';
+        var base = '[$-C0A]#,##0' + dec;
+        if (!fmt.unit) return base;
+        var sym = fmt.symbol || fmt.unit;
+        return base + ' "' + sym + '"';
     }
 
     // =====================================================================
@@ -107,8 +29,6 @@
 
     function insert(rows, options) {
         options = options || {};
-        var numFormat = options.numberFormat || 'EU';
-        try { numFormat = numFormat || localStorage.getItem('da_number_format') || 'EU'; } catch(e) {}
 
         if (!rows || rows.length === 0) {
             if (options.callback) options.callback({ error: 'Sin datos' });
@@ -133,32 +53,33 @@
             }
         }
 
+        // Pre-resolve format strings — pass as JSON string (more reliable for Asc.scope)
+        var fmtArray = [];
+        if (options.columnFormats) {
+            for (var i = 0; i < options.columnFormats.length; i++) {
+                var fmt = options.columnFormats[i];
+                if (!fmt) { fmtArray.push(''); continue; }
+                fmtArray.push(buildFmtStr(fmt));
+            }
+        }
+
         window.Asc.scope.insertRows = sortedRows;
-        window.Asc.scope.numberFormat = numFormat;
         window.Asc.scope.columns = options.columns || null;
+        window.Asc.scope.fmtJSON = fmtArray.length > 0 ? JSON.stringify(fmtArray) : '';
         window.Asc.scope.pivotConfigJSON = options.pivotConfig ? JSON.stringify(options.pivotConfig) : '';
 
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
             var sheetName = oSheet.GetName();
             var data = Asc.scope.insertRows;
-            var numFormat = Asc.scope.numberFormat || 'EU';
             var columns = Asc.scope.columns || null;
+            var fmtJSON = Asc.scope.fmtJSON || '';
             var pivotJSON = Asc.scope.pivotConfigJSON || '';
 
-            if (!data || data.length === 0) return { error: 'Sin datos en scope' };
+            var columnFormats = [];
+            if (fmtJSON) { try { columnFormats = JSON.parse(fmtJSON); } catch(e) { columnFormats = []; } }
 
-            function formatNumber(value) {
-                if (value === null || value === undefined || value === '') return '';
-                var num = parseFloat(value);
-                if (isNaN(num)) return value;
-                if (numFormat === 'EU') {
-                    var parts = num.toFixed(2).split('.');
-                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-                    return parts.join(',');
-                }
-                return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            }
+            if (!data || data.length === 0) return { error: 'Sin datos en scope' };
 
             function isNum(v) {
                 if (v === null || v === undefined || v === '') return false;
@@ -175,24 +96,17 @@
             var numRows = data.length + 1;
             var numCols = headers.length;
 
-            var metaSheet = Api.GetSheet('_AnalysisMeta');
-            if (!metaSheet) { Api.AddSheet('_AnalysisMeta'); metaSheet = Api.GetSheet('_AnalysisMeta'); if (metaSheet) metaSheet.SetVisible(false); }
-
-            // Clear previous
-            if (metaSheet) {
-                for (var i = 0; i < 100; i++) {
-                    var s = metaSheet.GetRangeByNumber(i, 0).GetValue();
-                    if (s === sheetName) {
-                        var pR = parseInt(metaSheet.GetRangeByNumber(i, 1).GetValue()) || 0;
-                        var pC = parseInt(metaSheet.GetRangeByNumber(i, 2).GetValue()) || 0;
-                        if (pR > 0 && pC > 0) {
-                            var cr = oSheet.GetRange('A1:' + colToLetter(pC - 1) + pR);
-                            if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); }
-                        }
-                        break;
+            // Clear previous area using stored dimensions from CustomProperties
+            var props = Api.GetCustomProperties();
+            var prevMeta = props.Get('_DA_' + sheetName);
+            if (prevMeta) {
+                try {
+                    var pm = JSON.parse(prevMeta);
+                    if (pm.rows > 0 && pm.cols > 0) {
+                        var cr = oSheet.GetRange('A1:' + colToLetter(pm.cols - 1) + pm.rows);
+                        if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); }
                     }
-                    if (!s || s === '') break;
-                }
+                } catch(e) {}
             }
 
             var headerBg = Api.CreateColorFromRGB(30, 58, 95);
@@ -211,11 +125,34 @@
                 for (var c = 0; c < headers.length; c++) {
                     var cell = oSheet.GetRangeByNumber(r + 1, c);
                     var value = data[r][headers[c]];
-                    var display;
-                    if (isNum(value)) { display = formatNumber(value); cell.SetValue(display); cell.SetAlignHorizontal('right'); }
-                    else { display = (value !== undefined && value !== null ? String(value) : ''); cell.SetValue(display); }
-                    if (display.length > colWidths[c]) colWidths[c] = display.length;
+                    if (isNum(value)) {
+                        cell.SetValue(parseFloat(value));
+                        cell.SetAlignHorizontal('right');
+                        var numStr = String(value);
+                        if (numStr.length + 4 > colWidths[c]) colWidths[c] = numStr.length + 4;
+                    } else {
+                        var display = (value !== undefined && value !== null ? String(value) : '');
+                        cell.SetValue(display);
+                        if (display.length > colWidths[c]) colWidths[c] = display.length;
+                    }
                     if (r % 2 === 1) cell.SetFillColor(altRowBg);
+                }
+            }
+
+            // Apply number formats per column
+            var formatsApplied = 0;
+            if (columnFormats.length > 0) {
+                for (var c = 0; c < columnFormats.length; c++) {
+                    var fmtStr = columnFormats[c];
+                    if (!fmtStr) continue;
+                    var letter = colToLetter(c);
+                    var rangeAddr = letter + '2:' + letter + (data.length + 1);
+                    var range = oSheet.GetRange(rangeAddr);
+                    if (range) {
+                        range.SetNumberFormat(fmtStr);
+                        formatsApplied++;
+                    }
+                    if (fmtStr.length + 4 > colWidths[c]) colWidths[c] = fmtStr.length + 4;
                 }
             }
 
@@ -224,23 +161,11 @@
                 oSheet.SetColumnWidth(c, charW);
             }
 
-            // Meta
-            if (metaSheet) {
-                var metaRow = -1, emptyRow = -1;
-                for (var i = 0; i < 100; i++) {
-                    var s = metaSheet.GetRangeByNumber(i, 0).GetValue();
-                    if (s === sheetName) { metaRow = i; break; }
-                    if ((!s || s === '') && emptyRow === -1) emptyRow = i;
-                }
-                if (metaRow === -1) metaRow = (emptyRow !== -1) ? emptyRow : 0;
-                metaSheet.GetRangeByNumber(metaRow, 0).SetValue(sheetName);
-                metaSheet.GetRangeByNumber(metaRow, 1).SetValue(numRows);
-                metaSheet.GetRangeByNumber(metaRow, 2).SetValue(numCols);
-                metaSheet.GetRangeByNumber(metaRow, 3).SetValue(pivotJSON);
-            }
+            // Save meta to CustomProperties
+            props.Add('_DA_' + sheetName, JSON.stringify({ rows: numRows, cols: numCols, pivotConfig: pivotJSON }));
 
             oSheet.GetRange('A1').Select();
-            return { success: true, count: data.length, columns: headers.length, sheetName: sheetName };
+            return { success: true, count: data.length, columns: headers.length, sheetName: sheetName, formatsApplied: formatsApplied };
 
         }, false, true, function(result) {
             if (options.callback) options.callback(result || { success: true });
@@ -253,8 +178,6 @@
 
     function insertCrossTab(crossTab, options) {
         options = options || {};
-        var numFormat = options.numberFormat || 'EU';
-        try { numFormat = numFormat || localStorage.getItem('da_number_format') || 'EU'; } catch(e) {}
 
         if (!crossTab || !crossTab.dataRows || crossTab.dataRows.length === 0) {
             console.error('[SheetWriter] insertCrossTab: no data rows');
@@ -262,17 +185,26 @@
             return;
         }
 
-        // Validate data before passing to scope
         if (!crossTab.headerRows || !Array.isArray(crossTab.headerRows)) {
-            console.error('[SheetWriter] insertCrossTab: invalid headerRows', crossTab);
+            console.error('[SheetWriter] insertCrossTab: invalid headerRows');
             if (options.callback) options.callback({ error: 'Cabeceras inválidas' });
             return;
+        }
+
+        // Pre-resolve format strings — pass as JSON string
+        var fmtArray = [];
+        if (crossTab.columnFormats) {
+            for (var i = 0; i < crossTab.columnFormats.length; i++) {
+                var fmt = crossTab.columnFormats[i];
+                if (!fmt) { fmtArray.push(''); continue; }
+                fmtArray.push(buildFmtStr(fmt));
+            }
         }
 
         window.Asc.scope.ctHeaderRows = crossTab.headerRows;
         window.Asc.scope.ctDataRows = crossTab.dataRows;
         window.Asc.scope.ctTotalCols = crossTab.totalCols;
-        window.Asc.scope.numberFormat = numFormat;
+        window.Asc.scope.fmtJSON = fmtArray.length > 0 ? JSON.stringify(fmtArray) : '';
         window.Asc.scope.pivotConfigJSON = options.pivotConfig ? JSON.stringify(options.pivotConfig) : '';
 
         window.Asc.plugin.callCommand(function() {
@@ -281,20 +213,11 @@
             var headerRows = Asc.scope.ctHeaderRows;
             var dataRows = Asc.scope.ctDataRows;
             var totalCols = Asc.scope.ctTotalCols;
-            var numFormat = Asc.scope.numberFormat || 'EU';
+            var fmtJSON = Asc.scope.fmtJSON || '';
             var pivotJSON = Asc.scope.pivotConfigJSON || '';
 
-            function formatNumber(value) {
-                if (value === null || value === undefined || value === '') return '';
-                var num = parseFloat(value);
-                if (isNaN(num)) return value;
-                if (numFormat === 'EU') {
-                    var parts = num.toFixed(2).split('.');
-                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-                    return parts.join(',');
-                }
-                return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            }
+            var columnFormats = [];
+            if (fmtJSON) { try { columnFormats = JSON.parse(fmtJSON); } catch(e) { columnFormats = []; } }
 
             function isNum(v) {
                 if (v === null || v === undefined || v === '') return false;
@@ -310,25 +233,17 @@
             var numHeaderRows = headerRows.length;
             var totalRows = numHeaderRows + dataRows.length;
 
-            // Meta sheet
-            var metaSheet = Api.GetSheet('_AnalysisMeta');
-            if (!metaSheet) { Api.AddSheet('_AnalysisMeta'); metaSheet = Api.GetSheet('_AnalysisMeta'); if (metaSheet) metaSheet.SetVisible(false); }
-
-            // Clear previous area
-            if (metaSheet) {
-                for (var i = 0; i < 100; i++) {
-                    var s = metaSheet.GetRangeByNumber(i, 0).GetValue();
-                    if (s === sheetName) {
-                        var pR = parseInt(metaSheet.GetRangeByNumber(i, 1).GetValue()) || 0;
-                        var pC = parseInt(metaSheet.GetRangeByNumber(i, 2).GetValue()) || 0;
-                        if (pR > 0 && pC > 0) {
-                            var cr = oSheet.GetRange('A1:' + colToLetter(pC - 1) + pR);
-                            if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); cr.SetItalic(false); }
-                        }
-                        break;
+            // Clear previous area using stored dimensions from CustomProperties
+            var props = Api.GetCustomProperties();
+            var prevMeta = props.Get('_DA_' + sheetName);
+            if (prevMeta) {
+                try {
+                    var pm = JSON.parse(prevMeta);
+                    if (pm.rows > 0 && pm.cols > 0) {
+                        var cr = oSheet.GetRange('A1:' + colToLetter(pm.cols - 1) + pm.rows);
+                        if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); cr.SetItalic(false); }
                     }
-                    if (!s || s === '') break;
-                }
+                } catch(e) {}
             }
 
             // Colors
@@ -365,17 +280,34 @@
                 for (var c = 0; c < row.length; c++) {
                     var cell = oSheet.GetRangeByNumber(numHeaderRows + r, c);
                     var value = row[c];
-                    var display;
                     if (isNum(value)) {
-                        display = formatNumber(value);
-                        cell.SetValue(display);
+                        cell.SetValue(parseFloat(value));
                         cell.SetAlignHorizontal('right');
+                        var numStr = String(value);
+                        if (numStr.length + 4 > colWidths[c]) colWidths[c] = numStr.length + 4;
                     } else {
-                        display = (value !== undefined && value !== null ? String(value) : '');
+                        var display = (value !== undefined && value !== null ? String(value) : '');
                         cell.SetValue(display);
+                        if (display.length > colWidths[c]) colWidths[c] = display.length;
                     }
-                    if (display.length > colWidths[c]) colWidths[c] = display.length;
                     if (r % 2 === 1) cell.SetFillColor(altRowBg);
+                }
+            }
+
+            // Apply number formats per column
+            if (columnFormats.length > 0) {
+                var firstDataRow = numHeaderRows + 1;
+                var lastDataRow = numHeaderRows + dataRows.length;
+                for (var c = 0; c < columnFormats.length; c++) {
+                    var fmtStr = columnFormats[c];
+                    if (!fmtStr) continue;
+                    var letter = colToLetter(c);
+                    var rangeAddr = letter + firstDataRow + ':' + letter + lastDataRow;
+                    var range = oSheet.GetRange(rangeAddr);
+                    if (range) {
+                        range.SetNumberFormat(fmtStr);
+                    }
+                    if (fmtStr.length + 4 > colWidths[c]) colWidths[c] = fmtStr.length + 4;
                 }
             }
 
@@ -385,20 +317,8 @@
                 oSheet.SetColumnWidth(c, charW);
             }
 
-            // Update meta
-            if (metaSheet) {
-                var metaRow = -1, emptyRow = -1;
-                for (var i = 0; i < 100; i++) {
-                    var s = metaSheet.GetRangeByNumber(i, 0).GetValue();
-                    if (s === sheetName) { metaRow = i; break; }
-                    if ((!s || s === '') && emptyRow === -1) emptyRow = i;
-                }
-                if (metaRow === -1) metaRow = (emptyRow !== -1) ? emptyRow : 0;
-                metaSheet.GetRangeByNumber(metaRow, 0).SetValue(sheetName);
-                metaSheet.GetRangeByNumber(metaRow, 1).SetValue(totalRows);
-                metaSheet.GetRangeByNumber(metaRow, 2).SetValue(totalCols);
-                metaSheet.GetRangeByNumber(metaRow, 3).SetValue(pivotJSON);
-            }
+            // Save meta to CustomProperties
+            props.Add('_DA_' + sheetName, JSON.stringify({ rows: totalRows, cols: totalCols, pivotConfig: pivotJSON }));
 
             oSheet.GetRange('A1').Select();
             return { success: true, count: dataRows.length, columns: totalCols, sheetName: sheetName, crossTab: true };

@@ -122,6 +122,31 @@
     };
 
     /**
+     * Returns an array aligned with getColumnOrder():
+     *   null for dimension columns, { unit, decimals, symbol } for measure columns.
+     * `symbol` is the resolved display character (pre-resolved so callCommand doesn't need window access).
+     */
+    PivotConfig.prototype.getColumnFormats = function(metadata) {
+        var formats = [];
+
+        this.rowFields.forEach(function() {
+            formats.push(null);
+        });
+
+        this.valueFields.forEach(function(name) {
+            var meas = metadata.measures.find(function(m) { return m.name === name; });
+            if (meas && meas.unit) {
+                var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(meas.unit) : meas.unit;
+                formats.push({ unit: meas.unit, decimals: meas.decimals != null ? meas.decimals : 2, symbol: sym });
+            } else {
+                formats.push(null);
+            }
+        });
+
+        return formats;
+    };
+
+    /**
      * Build cross-tab header info and pivoted data matrix.
      * Returns { headerRows: string[][], dataRows: (string|number)[][] }
      *
@@ -224,10 +249,28 @@
             dataRows.push(outRow);
         });
 
+        // --- Build columnFormats (aligned with headerRow0) ---
+        var columnFormats = [];
+        // Row-dim columns have no numeric format
+        rowCaptions.forEach(function() { columnFormats.push(null); });
+        // Each colCombo × each valueField
+        colCombos.forEach(function() {
+            self.valueFields.forEach(function(name) {
+                var meas = metadata.measures.find(function(m) { return m.name === name; });
+                if (meas && meas.unit) {
+                    var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(meas.unit) : meas.unit;
+                    columnFormats.push({ unit: meas.unit, decimals: meas.decimals != null ? meas.decimals : 2, symbol: sym });
+                } else {
+                    columnFormats.push(null);
+                }
+            });
+        });
+
         return {
             headerRows: headerRows,
             dataRows: dataRows,
-            totalCols: headerRow0.length
+            totalCols: headerRow0.length,
+            columnFormats: columnFormats
         };
     };
 

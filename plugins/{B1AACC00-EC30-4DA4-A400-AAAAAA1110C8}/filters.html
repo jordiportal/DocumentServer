@@ -6,11 +6,12 @@
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <script type="text/javascript" src="../v1/plugins-ui.js"></script>
     <link  rel="stylesheet" href="../v1/plugins.css">
-    <script type="text/javascript" src="scripts/mock-data.js?v=5"></script>
-    <script type="text/javascript" src="scripts/datasource.js?v=5"></script>
-    <script type="text/javascript" src="scripts/mock-datasource.js?v=5"></script>
-    <script type="text/javascript" src="scripts/datasource-manager.js?v=5"></script>
-    <script type="text/javascript" src="scripts/pivot-config.js?v=5"></script>
+    <script type="text/javascript" src="scripts/mock-data.js?v=8"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=8"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=8"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=8"></script>
+    <script type="text/javascript" src="scripts/pivot-config.js?v=8"></script>
+    <script type="text/javascript" src="scripts/unit-formatter.js?v=8"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -310,7 +311,7 @@
                 allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
             });
             metadata.measures.forEach(function(m) {
-                allFields.push({ name: m.name, caption: m.caption, type: 'measure' });
+                allFields.push({ name: m.name, caption: m.caption, type: 'measure', unit: m.unit, decimals: m.decimals });
             });
 
             pivotConfig = PivotConfig.fromMetadata(name, querySelect.selectedOptions[0].textContent, metadata);
@@ -386,7 +387,12 @@
         chip.dataset.type = fieldDef.type;
 
         var label = document.createElement('span');
-        label.textContent = fieldDef.caption;
+        var captionText = fieldDef.caption;
+        if (fieldDef.type === 'measure' && fieldDef.unit && zoneName === 'valueFields') {
+            var unitLabel = window.UnitFormatter ? UnitFormatter.displayLabel(fieldDef.unit) : fieldDef.unit;
+            captionText += ' (' + unitLabel + ')';
+        }
+        label.textContent = captionText;
         chip.appendChild(label);
 
         if (zoneName) {
@@ -602,24 +608,21 @@
             var params = pivotConfig.getQueryParams();
             var result = await ds.executeQuery(params);
 
-            var numFormat = 'EU';
-            try { numFormat = localStorage.getItem('da_number_format') || 'EU'; } catch(e) {}
-
             var payload;
 
             if (pivotConfig.isCrossTab()) {
                 var crossTab = pivotConfig.buildCrossTab(metadata, result.data);
                 payload = {
                     crossTab: crossTab,
-                    numberFormat: numFormat,
                     pivotConfig: pivotConfig.toJSON()
                 };
             } else {
                 var columns = pivotConfig.getColumnOrder(metadata);
+                var columnFormats = pivotConfig.getColumnFormats(metadata);
                 payload = {
                     rows: result.data,
                     columns: columns,
-                    numberFormat: numFormat,
+                    columnFormats: columnFormats,
                     pivotConfig: pivotConfig.toJSON()
                 };
             }
@@ -673,7 +676,7 @@
                         allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
                     });
                     meta.measures.forEach(function(m) {
-                        allFields.push({ name: m.name, caption: m.caption, type: 'measure' });
+                        allFields.push({ name: m.name, caption: m.caption, type: 'measure', unit: m.unit, decimals: m.decimals });
                     });
                     btnExecute.disabled = false;
                     renderAllZones();

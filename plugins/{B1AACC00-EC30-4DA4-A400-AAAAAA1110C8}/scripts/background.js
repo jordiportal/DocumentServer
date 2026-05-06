@@ -9,7 +9,7 @@
 (function(window, undefined) {
     'use strict';
 
-    var VERSION = '2.1.0';
+    var VERSION = '2.3.0';
     var PLUGIN_NAME = 'DataAnalyzer';
 
     var dsManager        = null;
@@ -39,6 +39,7 @@
         attachEvent('onContextMenuClick');
         setTimeout(registerUI, 100);
         setTimeout(restoreConfigForCurrentSheet, 500);
+
     };
 
     // =====================================================================
@@ -235,21 +236,14 @@
         window.Asc.plugin.callCommand(function() {
             var sheet = Api.GetActiveSheet();
             var sheetName = sheet.GetName();
-            var metaSheet = Api.GetSheet('_AnalysisMeta');
-            if (!metaSheet) return null;
-            for (var i = 0; i < 100; i++) {
-                var s = metaSheet.GetRangeByNumber(i, 0).GetValue();
-                if (s === sheetName) {
-                    var json = metaSheet.GetRangeByNumber(i, 3).GetValue();
-                    return json || null;
-                }
-                if (!s || s === '') break;
-            }
-            return null;
+            var props = Api.GetCustomProperties();
+            var json = props.Get('_DA_' + sheetName);
+            return json || null;
         }, false, false, function(result) {
             if (result && typeof result === 'string') {
                 try {
-                    currentPivotConfig = PivotConfig.fromJSON(result);
+                    var meta = JSON.parse(result);
+                    currentPivotConfig = PivotConfig.fromJSON(meta.pivotConfig);
                     console.log('[' + PLUGIN_NAME + '] Config restored');
                     if (filtersPanel) {
                         filtersPanel.command('onConfigLoaded', currentPivotConfig.toJSON());
@@ -393,9 +387,6 @@
 
         importWindow.attachEvent('onInsertData', function(data) {
             if (!data) return;
-            if (data.numberFormat) {
-                try { localStorage.setItem('da_number_format', data.numberFormat); } catch(e) {}
-            }
             if (data.pivotConfig) {
                 currentPivotConfig = PivotConfig.fromJSON(data.pivotConfig);
             }
@@ -409,14 +400,13 @@
 
             if (data.crossTab) {
                 SheetWriter.insertCrossTab(data.crossTab, {
-                    numberFormat: data.numberFormat,
                     pivotConfig: data.pivotConfig || null,
                     callback: afterInsert
                 });
             } else if (data.rows) {
                 SheetWriter.insert(data.rows, {
                     columns: data.columns || null,
-                    numberFormat: data.numberFormat,
+                    columnFormats: data.columnFormats || null,
                     pivotConfig: data.pivotConfig || null,
                     callback: afterInsert
                 });
@@ -466,21 +456,17 @@
 
         filtersPanel.attachEvent('onInsertData', function(data) {
             if (!data) return;
-            if (data.numberFormat) {
-                try { localStorage.setItem('da_number_format', data.numberFormat); } catch(e) {}
-            }
             if (data.pivotConfig) {
                 currentPivotConfig = PivotConfig.fromJSON(data.pivotConfig);
             }
             if (data.crossTab) {
                 SheetWriter.insertCrossTab(data.crossTab, {
-                    numberFormat: data.numberFormat,
                     pivotConfig: data.pivotConfig || null
                 });
             } else if (data.rows) {
                 SheetWriter.insert(data.rows, {
                     columns: data.columns || null,
-                    numberFormat: data.numberFormat,
+                    columnFormats: data.columnFormats || null,
                     pivotConfig: data.pivotConfig || null
                 });
             }

@@ -35,10 +35,10 @@
                 { name: '0CALMONTH', caption: 'Mes' }
             ],
             measures: [
-                { name: 'ZVNETAEST', caption: 'Venta Neta', dataType: 'N' },
-                { name: 'ZMARGEN', caption: 'Margen', dataType: 'N' },
-                { name: 'ZUNIDADES', caption: 'Unidades', dataType: 'N' },
-                { name: 'ZPCT_MARGEN', caption: '% Margen', dataType: 'N' }
+                { name: 'ZVNETAEST', caption: 'Venta Neta', dataType: 'N', unit: 'EUR', decimals: 2 },
+                { name: 'ZMARGEN', caption: 'Margen', dataType: 'N', unit: 'EUR', decimals: 2 },
+                { name: 'ZUNIDADES', caption: 'Unidades', dataType: 'I', unit: 'uds', decimals: 0 },
+                { name: 'ZPCT_MARGEN', caption: '% Margen', dataType: 'N', unit: '%', decimals: 2 }
             ]
         },
         'ventas/ventas_por_cliente': {
@@ -48,9 +48,9 @@
                 { name: '0CALMONTH', caption: 'Mes' }
             ],
             measures: [
-                { name: 'ZVNETAEST', caption: 'Venta Neta', dataType: 'N' },
-                { name: 'ZDESCUENTO', caption: 'Descuento', dataType: 'N' },
-                { name: 'ZMARGEN', caption: 'Margen', dataType: 'N' }
+                { name: 'ZVNETAEST', caption: 'Venta Neta', dataType: 'N', unit: 'EUR', decimals: 2 },
+                { name: 'ZDESCUENTO', caption: 'Descuento', dataType: 'N', unit: '%', decimals: 2 },
+                { name: 'ZMARGEN', caption: 'Margen', dataType: 'N', unit: 'EUR', decimals: 2 }
             ]
         },
         'produccion/produccion_mensual': {
@@ -60,10 +60,10 @@
                 { name: 'ZTURNO', caption: 'Turno' }
             ],
             measures: [
-                { name: 'ZUNID_PROD', caption: 'Unidades Producidas', dataType: 'N' },
-                { name: 'ZCOSTE', caption: 'Coste Total', dataType: 'N' },
-                { name: 'ZEFICIENCIA', caption: 'Eficiencia %', dataType: 'N' },
-                { name: 'ZMERMA', caption: 'Merma %', dataType: 'N' }
+                { name: 'ZUNID_PROD', caption: 'Unidades Producidas', dataType: 'I', unit: 'uds', decimals: 0 },
+                { name: 'ZCOSTE', caption: 'Coste Total', dataType: 'N', unit: 'EUR', decimals: 2 },
+                { name: 'ZEFICIENCIA', caption: 'Eficiencia %', dataType: 'N', unit: '%', decimals: 2 },
+                { name: 'ZMERMA', caption: 'Merma %', dataType: 'N', unit: '%', decimals: 2 }
             ]
         }
     };
@@ -184,10 +184,11 @@
                 activeMeasures.forEach(mName => {
                     const mDef = meta.measures.find(m => m.name === mName);
                     const key = mDef ? mDef.caption : mName;
-                    if (mName.includes('PCT') || mName.includes('EFICIENCIA') || mName.includes('MERMA')) {
-                        row[key] = Math.round(rng() * 6000) / 100;
-                    } else if (mName.includes('UNID') || mName.includes('UNIDADES')) {
+                    const decimals = mDef && mDef.decimals != null ? mDef.decimals : 2;
+                    if (decimals === 0) {
                         row[key] = Math.round(rng() * 50000);
+                    } else if (mDef && mDef.unit === '%') {
+                        row[key] = Math.round(rng() * 6000) / 100;
                     } else {
                         row[key] = Math.round(rng() * 5000000) / 100;
                     }
