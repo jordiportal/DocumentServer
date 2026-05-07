@@ -6,12 +6,12 @@
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <script type="text/javascript" src="../v1/plugins-ui.js"></script>
     <link  rel="stylesheet" href="../v1/plugins.css">
-    <script type="text/javascript" src="scripts/mock-data.js?v=10"></script>
-    <script type="text/javascript" src="scripts/datasource.js?v=10"></script>
-    <script type="text/javascript" src="scripts/mock-datasource.js?v=10"></script>
-    <script type="text/javascript" src="scripts/datasource-manager.js?v=10"></script>
-    <script type="text/javascript" src="scripts/pivot-config.js?v=10"></script>
-    <script type="text/javascript" src="scripts/unit-formatter.js?v=10"></script>
+    <script type="text/javascript" src="scripts/mock-data.js?v=12"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=12"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=12"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=12"></script>
+    <script type="text/javascript" src="scripts/pivot-config.js?v=12"></script>
+    <script type="text/javascript" src="scripts/unit-formatter.js?v=12"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -161,6 +161,26 @@
             display: flex; align-items: center; gap: 4px; font-size: 10px;
         }
         .status-text { flex: 1; text-align: right; font-size: 9px; color: #999; }
+
+        /* Overlap confirmation dialog */
+        .overlap-dialog {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); display: flex;
+            align-items: center; justify-content: center; z-index: 3000;
+        }
+        .overlap-dialog .dialog-box {
+            background: #fff; border-radius: 8px; padding: 16px;
+            width: 280px; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        }
+        .overlap-dialog .dialog-box h4 {
+            font-size: 13px; margin-bottom: 10px; color: #333;
+        }
+        .overlap-dialog .dialog-box p {
+            font-size: 11px; color: #666; margin-bottom: 14px; line-height: 1.4;
+        }
+        .overlap-dialog .dialog-actions {
+            display: flex; gap: 8px; justify-content: flex-end;
+        }
     </style>
 </head>
 <body>
@@ -859,6 +879,68 @@
         window.Asc.plugin.attachEvent('onConfigLoaded', function(data) {
             loadConfig(data);
         });
+
+        window.Asc.plugin.attachEvent('onOverlapConfirm', function(data) {
+            showOverlapDialog(data);
+        });
+    }
+
+    function showOverlapDialog() {
+        var existing = document.querySelector('.overlap-dialog');
+        if (existing) existing.remove();
+
+        var backdrop = document.createElement('div');
+        backdrop.className = 'overlap-dialog';
+
+        var box = document.createElement('div');
+        box.className = 'dialog-box';
+
+        var h4 = document.createElement('h4');
+        h4.textContent = 'Informe existente';
+        box.appendChild(h4);
+
+        var p = document.createElement('p');
+        p.textContent = 'Ya existe un informe en esta posición. ¿Deseas sustituirlo o crear uno nuevo en la celda seleccionada?';
+        box.appendChild(p);
+
+        var actions = document.createElement('div');
+        actions.className = 'dialog-actions';
+
+        var btnReplace = document.createElement('button');
+        btnReplace.className = 'btn btn-primary';
+        btnReplace.textContent = 'Sustituir';
+        btnReplace.onclick = function() {
+            backdrop.remove();
+            sendToPlugin('onOverlapResponse', 'replace');
+        };
+
+        var btnNew = document.createElement('button');
+        btnNew.className = 'btn';
+        btnNew.textContent = 'Crear nuevo';
+        btnNew.onclick = function() {
+            backdrop.remove();
+            sendToPlugin('onOverlapResponse', 'new');
+        };
+
+        var btnCancel = document.createElement('button');
+        btnCancel.className = 'btn';
+        btnCancel.textContent = 'Cancelar';
+        btnCancel.onclick = function() {
+            backdrop.remove();
+        };
+
+        actions.appendChild(btnReplace);
+        actions.appendChild(btnNew);
+        actions.appendChild(btnCancel);
+        box.appendChild(actions);
+        backdrop.appendChild(box);
+        document.body.appendChild(backdrop);
+    }
+
+    function sendToPlugin(eventName, data) {
+        if (window.Asc && window.Asc.plugin) {
+            window.Asc.plugin.sendToPlugin(eventName, data);
+        }
     }
 })();
 </script>

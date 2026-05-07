@@ -1,19 +1,15 @@
 /**
  * SheetWriter — Writes query results into the active spreadsheet.
- * v2.2: Unit support via SetNumberFormat, real numeric cell values.
+ * v3.0: Multi-report support — inserts at arbitrary startRow/startCol offset.
  *
  * Usage (from background.js):
- *   SheetWriter.insert(rows, { columns, columnFormats, pivotConfig, callback });
- *   SheetWriter.insertCrossTab(crossTab, { pivotConfig, callback });
+ *   SheetWriter.insert(rows, { columns, columnFormats, pivotConfig, callback, startRow, startCol, reportId, clearArea });
+ *   SheetWriter.insertCrossTab(crossTab, { pivotConfig, callback, startRow, startCol, reportId, clearArea });
  */
 
 (function(window) {
     'use strict';
 
-    /**
-     * Build Excel format string from a column format definition.
-     * Uses [$-C0A] locale prefix to force Spanish (European) number display.
-     */
     function buildFmtStr(fmt) {
         var d = fmt.decimals != null ? fmt.decimals : 2;
         var dec = d > 0 ? '.' + new Array(d + 1).join('0') : '';
@@ -35,7 +31,6 @@
             return;
         }
 
-        // Sort if requested
         var sortedRows = rows;
         if (options.sortField || (options.pivotConfig && options.pivotConfig.sortField)) {
             var sf = options.sortField || options.pivotConfig.sortField;
@@ -53,7 +48,6 @@
             }
         }
 
-        // Pre-resolve format strings — pass as JSON string (more reliable for Asc.scope)
         var fmtArray = [];
         if (options.columnFormats) {
             for (var i = 0; i < options.columnFormats.length; i++) {
@@ -68,6 +62,10 @@
         window.Asc.scope.fmtJSON = fmtArray.length > 0 ? JSON.stringify(fmtArray) : '';
         window.Asc.scope.pivotConfigJSON = options.pivotConfig ? JSON.stringify(options.pivotConfig) : '';
         window.Asc.scope.drillInfoJSON = options.drillInfo ? JSON.stringify(options.drillInfo) : '';
+        window.Asc.scope.startRow = options.startRow || 0;
+        window.Asc.scope.startCol = options.startCol || 0;
+        window.Asc.scope.reportId = options.reportId || '';
+        window.Asc.scope.clearArea = options.clearArea || null;
 
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
@@ -76,6 +74,10 @@
             var columns = Asc.scope.columns || null;
             var fmtJSON = Asc.scope.fmtJSON || '';
             var pivotJSON = Asc.scope.pivotConfigJSON || '';
+            var sRow = Asc.scope.startRow || 0;
+            var sCol = Asc.scope.startCol || 0;
+            var reportId = Asc.scope.reportId || '';
+            var clearArea = Asc.scope.clearArea || null;
 
             var columnFormats = [];
             if (fmtJSON) { try { columnFormats = JSON.parse(fmtJSON); } catch(e) { columnFormats = []; } }
@@ -100,17 +102,14 @@
             var numRows = data.length + 1;
             var numCols = headers.length;
 
-            // Clear previous area using stored dimensions from CustomProperties
-            var props = Api.GetCustomProperties();
-            var prevMeta = props.Get('_DA_' + sheetName);
-            if (prevMeta) {
-                try {
-                    var pm = JSON.parse(prevMeta);
-                    if (pm.rows > 0 && pm.cols > 0) {
-                        var cr = oSheet.GetRange('A1:' + colToLetter(pm.cols - 1) + pm.rows);
-                        if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); }
-                    }
-                } catch(e) {}
+            // Clear specific area if provided (for replacing an existing report)
+            if (clearArea && clearArea.rows > 0 && clearArea.cols > 0) {
+                var cStartR = clearArea.startRow || 0;
+                var cStartC = clearArea.startCol || 0;
+                var topLeft = colToLetter(cStartC) + (cStartR + 1);
+                var botRight = colToLetter(cStartC + clearArea.cols - 1) + (cStartR + clearArea.rows);
+                var cr = oSheet.GetRange(topLeft + ':' + botRight);
+                if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); }
             }
 
             var headerBg = Api.CreateColorFromRGB(30, 58, 95);
@@ -123,7 +122,7 @@
             var colWidths = [];
             for (var c = 0; c < headers.length; c++) {
                 colWidths[c] = String(headers[c]).length + 2;
-                var hCell = oSheet.GetRangeByNumber(0, c);
+                var hCell = oSheet.GetRangeByNumber(sRow, sCol + c);
                 hCell.SetValue(headers[c]); hCell.SetBold(true);
                 hCell.SetFillColor(headerBg); hCell.SetFontColor(headerFont);
             }
@@ -133,7 +132,7 @@
                 var isTotalRow = rowInfo && (rowInfo.isTotal || rowInfo.isGrandTotal);
 
                 for (var c = 0; c < headers.length; c++) {
-                    var cell = oSheet.GetRangeByNumber(r + 1, c);
+                    var cell = oSheet.GetRangeByNumber(sRow + r + 1, sCol + c);
                     var value = data[r][headers[c]];
                     if (isNum(value)) {
                         cell.SetValue(parseFloat(value));
@@ -146,7 +145,6 @@
                         if (display.length > colWidths[c]) colWidths[c] = display.length;
                     }
 
-                    // Style total rows
                     if (isTotalRow) {
                         cell.SetBold(true);
                         if (rowInfo.isGrandTotal) {
@@ -156,7 +154,6 @@
                         }
                     } else {
                         if (r % 2 === 1) cell.SetFillColor(altRowBg);
-                        // Style drill cells with color to indicate clickability
                         if (c === 0 && rowInfo && rowInfo.hasChildren) {
                             cell.SetFontColor(drillColor);
                             cell.SetBold(true);
@@ -171,8 +168,8 @@
                 for (var c = 0; c < columnFormats.length; c++) {
                     var fmtStr = columnFormats[c];
                     if (!fmtStr) continue;
-                    var letter = colToLetter(c);
-                    var rangeAddr = letter + '2:' + letter + (data.length + 1);
+                    var letter = colToLetter(sCol + c);
+                    var rangeAddr = letter + (sRow + 2) + ':' + letter + (sRow + data.length + 1);
                     var range = oSheet.GetRange(rangeAddr);
                     if (range) {
                         range.SetNumberFormat(fmtStr);
@@ -184,13 +181,45 @@
 
             for (var c = 0; c < headers.length; c++) {
                 var charW = Math.min(Math.max(Math.ceil(colWidths[c] * 1.2) + 2, 10), 65);
-                oSheet.SetColumnWidth(c, charW);
+                oSheet.SetColumnWidth(sCol + c, charW);
             }
 
-            // Save meta + drillInfo to CustomProperties
-            props.Add('_DA_' + sheetName, JSON.stringify({ rows: numRows, cols: numCols, pivotConfig: pivotJSON, drillInfo: drillInfo }));
+            // Save report slot info to CustomProperties
+            var props = Api.GetCustomProperties();
+            var metaKey = '_DA_' + sheetName;
+            var existing = props.Get(metaKey);
+            var reports = [];
+            if (existing) {
+                try {
+                    var parsed = JSON.parse(existing);
+                    reports = parsed.reports || [];
+                    // Legacy migration: if no reports array, treat old data as a single report
+                    if (!parsed.reports && parsed.rows) {
+                        reports = [{ id: 'legacy', startRow: 0, startCol: 0, rows: parsed.rows, cols: parsed.cols, pivotConfig: parsed.pivotConfig || '', drillInfo: parsed.drillInfo || [] }];
+                    }
+                } catch(e) { reports = []; }
+            }
 
-            return { success: true, count: data.length, columns: headers.length, sheetName: sheetName, formatsApplied: formatsApplied, hasDrill: drillInfo.length > 0 };
+            var slot = {
+                id: reportId,
+                startRow: sRow,
+                startCol: sCol,
+                rows: numRows,
+                cols: numCols,
+                pivotConfig: pivotJSON,
+                drillInfo: drillInfo
+            };
+
+            // Replace existing slot with same id, or add new
+            var found = false;
+            for (var i = 0; i < reports.length; i++) {
+                if (reports[i].id === reportId) { reports[i] = slot; found = true; break; }
+            }
+            if (!found) reports.push(slot);
+
+            props.Add(metaKey, JSON.stringify({ reports: reports }));
+
+            return { success: true, count: data.length, columns: headers.length, sheetName: sheetName, formatsApplied: formatsApplied, hasDrill: drillInfo.length > 0, reportId: reportId, startRow: sRow, startCol: sCol, numRows: numRows, numCols: numCols };
 
         }, false, true, function(result) {
             if (options.callback) options.callback(result || { success: true });
@@ -216,7 +245,6 @@
             return;
         }
 
-        // Pre-resolve format strings — pass as JSON string
         var fmtArray = [];
         if (crossTab.columnFormats) {
             for (var i = 0; i < crossTab.columnFormats.length; i++) {
@@ -232,6 +260,10 @@
         window.Asc.scope.fmtJSON = fmtArray.length > 0 ? JSON.stringify(fmtArray) : '';
         window.Asc.scope.pivotConfigJSON = options.pivotConfig ? JSON.stringify(options.pivotConfig) : '';
         window.Asc.scope.ctDrillInfo = crossTab.drillInfo || null;
+        window.Asc.scope.startRow = options.startRow || 0;
+        window.Asc.scope.startCol = options.startCol || 0;
+        window.Asc.scope.reportId = options.reportId || '';
+        window.Asc.scope.clearArea = options.clearArea || null;
 
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
@@ -241,6 +273,10 @@
             var totalCols = Asc.scope.ctTotalCols;
             var fmtJSON = Asc.scope.fmtJSON || '';
             var pivotJSON = Asc.scope.pivotConfigJSON || '';
+            var sRow = Asc.scope.startRow || 0;
+            var sCol = Asc.scope.startCol || 0;
+            var reportId = Asc.scope.reportId || '';
+            var clearArea = Asc.scope.clearArea || null;
 
             var columnFormats = [];
             if (fmtJSON) { try { columnFormats = JSON.parse(fmtJSON); } catch(e) { columnFormats = []; } }
@@ -259,17 +295,14 @@
             var numHeaderRows = headerRows.length;
             var totalRows = numHeaderRows + dataRows.length;
 
-            // Clear previous area using stored dimensions from CustomProperties
-            var props = Api.GetCustomProperties();
-            var prevMeta = props.Get('_DA_' + sheetName);
-            if (prevMeta) {
-                try {
-                    var pm = JSON.parse(prevMeta);
-                    if (pm.rows > 0 && pm.cols > 0) {
-                        var cr = oSheet.GetRange('A1:' + colToLetter(pm.cols - 1) + pm.rows);
-                        if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); cr.SetItalic(false); }
-                    }
-                } catch(e) {}
+            // Clear specific area if provided
+            if (clearArea && clearArea.rows > 0 && clearArea.cols > 0) {
+                var cStartR = clearArea.startRow || 0;
+                var cStartC = clearArea.startCol || 0;
+                var topLeft = colToLetter(cStartC) + (cStartR + 1);
+                var botRight = colToLetter(cStartC + clearArea.cols - 1) + (cStartR + clearArea.rows);
+                var cr = oSheet.GetRange(topLeft + ':' + botRight);
+                if (cr) { cr.SetValue(''); cr.SetFillColor('No Fill'); cr.SetFontColor(Api.CreateColorFromRGB(0,0,0)); cr.SetBold(false); cr.SetItalic(false); }
             }
 
             // Colors
@@ -289,7 +322,7 @@
                 var row = headerRows[hr];
                 var bg = hr === 0 ? headerBg : subHeaderBg;
                 for (var c = 0; c < row.length; c++) {
-                    var cell = oSheet.GetRangeByNumber(hr, c);
+                    var cell = oSheet.GetRangeByNumber(sRow + hr, sCol + c);
                     var val = row[c];
                     if (val !== '' && val !== null && val !== undefined) {
                         cell.SetValue(val);
@@ -309,7 +342,7 @@
                 var rowInfo = drillInfo && drillInfo[r] ? drillInfo[r] : null;
                 var isGrand = rowInfo && rowInfo.isGrandTotal;
                 for (var c = 0; c < row.length; c++) {
-                    var cell = oSheet.GetRangeByNumber(numHeaderRows + r, c);
+                    var cell = oSheet.GetRangeByNumber(sRow + numHeaderRows + r, sCol + c);
                     var value = row[c];
                     if (isNum(value)) {
                         cell.SetValue(parseFloat(value));
@@ -332,12 +365,12 @@
 
             // Apply number formats per column
             if (columnFormats.length > 0) {
-                var firstDataRow = numHeaderRows + 1;
-                var lastDataRow = numHeaderRows + dataRows.length;
+                var firstDataRow = sRow + numHeaderRows + 1;
+                var lastDataRow = sRow + numHeaderRows + dataRows.length;
                 for (var c = 0; c < columnFormats.length; c++) {
                     var fmtStr = columnFormats[c];
                     if (!fmtStr) continue;
-                    var letter = colToLetter(c);
+                    var letter = colToLetter(sCol + c);
                     var rangeAddr = letter + firstDataRow + ':' + letter + lastDataRow;
                     var range = oSheet.GetRange(rangeAddr);
                     if (range) {
@@ -350,14 +383,44 @@
             // Auto-fit columns
             for (var c = 0; c < totalCols; c++) {
                 var charW = Math.min(Math.max(Math.ceil(colWidths[c] * 1.2) + 2, 10), 65);
-                oSheet.SetColumnWidth(c, charW);
+                oSheet.SetColumnWidth(sCol + c, charW);
             }
 
-            // Save meta to CustomProperties
-            props.Add('_DA_' + sheetName, JSON.stringify({ rows: totalRows, cols: totalCols, pivotConfig: pivotJSON }));
+            // Save report slot to CustomProperties
+            var props = Api.GetCustomProperties();
+            var metaKey = '_DA_' + sheetName;
+            var existing = props.Get(metaKey);
+            var reports = [];
+            if (existing) {
+                try {
+                    var parsed = JSON.parse(existing);
+                    reports = parsed.reports || [];
+                    if (!parsed.reports && parsed.rows) {
+                        reports = [{ id: 'legacy', startRow: 0, startCol: 0, rows: parsed.rows, cols: parsed.cols, pivotConfig: parsed.pivotConfig || '', drillInfo: [] }];
+                    }
+                } catch(e) { reports = []; }
+            }
 
-            oSheet.GetRange('A1').Select();
-            return { success: true, count: dataRows.length, columns: totalCols, sheetName: sheetName, crossTab: true };
+            var slot = {
+                id: reportId,
+                startRow: sRow,
+                startCol: sCol,
+                rows: totalRows,
+                cols: totalCols,
+                pivotConfig: pivotJSON,
+                drillInfo: drillInfo || []
+            };
+
+            var found = false;
+            for (var i = 0; i < reports.length; i++) {
+                if (reports[i].id === reportId) { reports[i] = slot; found = true; break; }
+            }
+            if (!found) reports.push(slot);
+
+            props.Add(metaKey, JSON.stringify({ reports: reports }));
+
+            oSheet.GetRangeByNumber(sRow, sCol).Select();
+            return { success: true, count: dataRows.length, columns: totalCols, sheetName: sheetName, crossTab: true, reportId: reportId, startRow: sRow, startCol: sCol, numRows: totalRows, numCols: totalCols };
 
         }, false, true, function(result) {
             if (options.callback) options.callback(result || { success: true });
