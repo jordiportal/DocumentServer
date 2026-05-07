@@ -6,12 +6,12 @@
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <script type="text/javascript" src="../v1/plugins-ui.js"></script>
     <link  rel="stylesheet" href="../v1/plugins.css">
-    <script type="text/javascript" src="scripts/mock-data.js?v=8"></script>
-    <script type="text/javascript" src="scripts/datasource.js?v=8"></script>
-    <script type="text/javascript" src="scripts/mock-datasource.js?v=8"></script>
-    <script type="text/javascript" src="scripts/datasource-manager.js?v=8"></script>
-    <script type="text/javascript" src="scripts/pivot-config.js?v=8"></script>
-    <script type="text/javascript" src="scripts/unit-formatter.js?v=8"></script>
+    <script type="text/javascript" src="scripts/mock-data.js?v=10"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=10"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=10"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=10"></script>
+    <script type="text/javascript" src="scripts/pivot-config.js?v=10"></script>
+    <script type="text/javascript" src="scripts/unit-formatter.js?v=10"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -66,6 +66,13 @@
         .chip-dim {
             background: #e3ecf7; color: #2b5797;
             border-color: #b8d0eb;
+        }
+        .chip-hier {
+            background: #fff3e0; color: #e65100;
+            border-color: #ffcc80;
+        }
+        .chip-hier .hier-icon {
+            font-size: 9px; margin-right: 1px;
         }
         .chip-meas {
             background: #e8f5e9; color: #2e7d32;
@@ -253,7 +260,7 @@
 
     var pivotConfig  = null;
     var metadata     = null;
-    var allFields    = [];  // { name, caption, type: 'dimension'|'measure' }
+    var allFields    = [];  // { name, caption, type: 'dimension'|'measure'|'hierarchy', levels? }
     var dimValuesCache = {};
     var pendingFilterDim = null;
     var lastExecuteTime = 0;
@@ -307,9 +314,31 @@
         try {
             metadata = await ds.getMetadata(name);
             allFields = [];
+
+            // Collect dimension names that are part of a hierarchy
+            var hierDimRefs = {};
+            if (metadata.hierarchies) {
+                metadata.hierarchies.forEach(function(h) {
+                    h.levels.forEach(function(lev) {
+                        hierDimRefs[lev.dimensionRef] = h.name;
+                    });
+                });
+            }
+
+            // Add standalone dimensions (not part of any hierarchy)
             metadata.dimensions.forEach(function(d) {
-                allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
+                if (!hierDimRefs[d.name]) {
+                    allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
+                }
             });
+
+            // Add hierarchies as special fields
+            if (metadata.hierarchies) {
+                metadata.hierarchies.forEach(function(h) {
+                    allFields.push({ name: h.name, caption: h.caption, type: 'hierarchy', levels: h.levels });
+                });
+            }
+
             metadata.measures.forEach(function(m) {
                 allFields.push({ name: m.name, caption: m.caption, type: 'measure', unit: m.unit, decimals: m.decimals });
             });
@@ -351,8 +380,11 @@
             var chip = createChip(f, null);
             chip.addEventListener('click', function(e) {
                 e.stopPropagation();
-                var targetZone = f.type === 'dimension' ? 'rowFields' : 'valueFields';
+                var targetZone = (f.type === 'dimension' || f.type === 'hierarchy') ? 'rowFields' : 'valueFields';
                 pivotConfig.moveField(f.name, null, targetZone);
+                if (f.type === 'hierarchy' && !pivotConfig.hierarchyState[f.name]) {
+                    pivotConfig.hierarchyState[f.name] = { expandedLevel: 0, expandedNodes: {} };
+                }
                 renderAllZones();
                 notifyChange();
             });
@@ -382,15 +414,34 @@
 
     function createChip(fieldDef, zoneName) {
         var chip = document.createElement('span');
-        chip.className = 'chip ' + (fieldDef.type === 'dimension' ? 'chip-dim' : 'chip-meas');
+        var chipClass = 'chip ';
+        if (fieldDef.type === 'hierarchy') chipClass += 'chip-hier';
+        else if (fieldDef.type === 'dimension') chipClass += 'chip-dim';
+        else chipClass += 'chip-meas';
+        chip.className = chipClass;
         chip.dataset.name = fieldDef.name;
         chip.dataset.type = fieldDef.type;
+
+        // Hierarchy icon
+        if (fieldDef.type === 'hierarchy') {
+            var icon = document.createElement('span');
+            icon.className = 'hier-icon';
+            icon.textContent = '\u25B6'; // triangle
+            chip.appendChild(icon);
+        }
 
         var label = document.createElement('span');
         var captionText = fieldDef.caption;
         if (fieldDef.type === 'measure' && fieldDef.unit && zoneName === 'valueFields') {
             var unitLabel = window.UnitFormatter ? UnitFormatter.displayLabel(fieldDef.unit) : fieldDef.unit;
             captionText += ' (' + unitLabel + ')';
+        }
+        if (fieldDef.type === 'hierarchy' && zoneName === 'rowFields' && pivotConfig) {
+            var state = pivotConfig.hierarchyState[fieldDef.name];
+            if (state && fieldDef.levels && fieldDef.levels.length > 0) {
+                var lvlIdx = Math.min(state.expandedLevel, fieldDef.levels.length - 1);
+                captionText += ' [' + fieldDef.levels[lvlIdx].caption + ']';
+            }
         }
         label.textContent = captionText;
         chip.appendChild(label);
@@ -441,11 +492,27 @@
         var zones = PivotConfig.ZONES;
         var zoneLabels = { rowFields: 'Filas', columnFields: 'Columnas', filterFields: 'Filtros', valueFields: 'Valores' };
 
+        // Hierarchy level selector
+        if (fieldDef.type === 'hierarchy' && fieldDef.levels && currentZone === 'rowFields') {
+            addMenuLabel('Nivel de detalle:');
+            var state = pivotConfig.hierarchyState[fieldDef.name] || { expandedLevel: 0 };
+            fieldDef.levels.forEach(function(lev, idx) {
+                var prefix = (idx === state.expandedLevel) ? '\u2714 ' : '   ';
+                addMenuItem(prefix + lev.caption, function() {
+                    pivotConfig.setHierarchyLevel(fieldDef.name, idx);
+                    renderAllZones();
+                    notifyChange();
+                });
+            });
+            addMenuSep();
+        }
+
         // Move to other zones
         zones.forEach(function(z) {
             if (z === currentZone) return;
-            if (z === 'valueFields' && fieldDef.type === 'dimension') return;
+            if (z === 'valueFields' && (fieldDef.type === 'dimension' || fieldDef.type === 'hierarchy')) return;
             if ((z === 'rowFields' || z === 'columnFields' || z === 'filterFields') && fieldDef.type === 'measure') return;
+            if (z === 'columnFields' && fieldDef.type === 'hierarchy') return; // hierarchies only in rows
 
             addMenuItem('Mover a ' + zoneLabels[z], function() {
                 pivotConfig.moveField(fieldDef.name, currentZone, z);
@@ -476,6 +543,9 @@
         addMenuSep();
         addMenuItem('Quitar campo', function() {
             pivotConfig.removeField(fieldDef.name);
+            if (fieldDef.type === 'hierarchy') {
+                delete pivotConfig.hierarchyState[fieldDef.name];
+            }
             renderAllZones();
             notifyChange();
         });
@@ -489,6 +559,13 @@
                 action();
             });
             chipMenu.appendChild(item);
+        }
+
+        function addMenuLabel(text) {
+            var lbl = document.createElement('div');
+            lbl.style.cssText = 'padding:4px 12px;font-size:9px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.3px;';
+            lbl.textContent = text;
+            chipMenu.appendChild(lbl);
         }
 
         function addMenuSep() {
@@ -605,7 +682,7 @@
         var t0 = Date.now();
 
         try {
-            var params = pivotConfig.getQueryParams();
+            var params = pivotConfig.getQueryParams(metadata);
             var result = await ds.executeQuery(params);
 
             var payload;
@@ -614,6 +691,16 @@
                 var crossTab = pivotConfig.buildCrossTab(metadata, result.data);
                 payload = {
                     crossTab: crossTab,
+                    pivotConfig: pivotConfig.toJSON()
+                };
+            } else if (pivotConfig.hasHierarchies(metadata)) {
+                var hierData = pivotConfig.buildHierarchicalData(metadata, result.data);
+                var columnFormats = pivotConfig.getColumnFormats(metadata, true);
+                payload = {
+                    rows: hierData.rows,
+                    columns: hierData.columns,
+                    columnFormats: columnFormats,
+                    drillInfo: hierData.drillInfo,
                     pivotConfig: pivotConfig.toJSON()
                 };
             } else {
@@ -633,7 +720,7 @@
 
             var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
             var totalCols = payload.crossTab ? payload.crossTab.totalCols : (payload.columns ? payload.columns.length : 0);
-            var totalRows = payload.crossTab ? payload.crossTab.dataRows.length : result.totalRows;
+            var totalRows = payload.crossTab ? payload.crossTab.dataRows.length : (payload.rows ? payload.rows.length : result.totalRows);
             statusText.textContent = totalRows + ' filas | ' + totalCols + ' cols | ' + elapsed + 's';
             lastExecuteTime = Date.now();
         } catch(e) {
@@ -666,18 +753,37 @@
         pivotConfig = PivotConfig.fromJSON(configJSON);
         if (pivotConfig && pivotConfig.source) {
             querySelect.value = pivotConfig.source;
-            // Ensure metadata is loaded
             var ds = dsManager.getActive();
             if (ds) {
                 ds.getMetadata(pivotConfig.source).then(function(meta) {
                     metadata = meta;
                     allFields = [];
+
+                    var hierDimRefs = {};
+                    if (meta.hierarchies) {
+                        meta.hierarchies.forEach(function(h) {
+                            h.levels.forEach(function(lev) {
+                                hierDimRefs[lev.dimensionRef] = h.name;
+                            });
+                        });
+                    }
+
                     meta.dimensions.forEach(function(d) {
-                        allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
+                        if (!hierDimRefs[d.name]) {
+                            allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
+                        }
                     });
+
+                    if (meta.hierarchies) {
+                        meta.hierarchies.forEach(function(h) {
+                            allFields.push({ name: h.name, caption: h.caption, type: 'hierarchy', levels: h.levels });
+                        });
+                    }
+
                     meta.measures.forEach(function(m) {
                         allFields.push({ name: m.name, caption: m.caption, type: 'measure', unit: m.unit, decimals: m.decimals });
                     });
+
                     btnExecute.disabled = false;
                     renderAllZones();
                 });

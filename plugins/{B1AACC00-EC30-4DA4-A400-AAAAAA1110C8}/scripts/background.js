@@ -9,7 +9,7 @@
 (function(window, undefined) {
     'use strict';
 
-    var VERSION = '2.3.0';
+    var VERSION = '2.5.3';
     var PLUGIN_NAME = 'DataAnalyzer';
 
     var dsManager        = null;
@@ -182,7 +182,11 @@
         }
     }
 
+    var lastDrillCell = null;
+    var drillInProgress = false;
+
     function readCurrentCell() {
+        if (drillInProgress) return;
         window.Asc.plugin.callCommand(function() {
             var sheet = Api.GetActiveSheet();
             var cell = sheet.GetActiveCell();
@@ -193,7 +197,58 @@
                 sheetName: sheet.GetName()
             };
         }, false, false, function(result) {
-            if (result) currentCellInfo = result;
+            if (result) {
+                currentCellInfo = result;
+                checkDrillAction(result);
+            }
+        });
+    }
+
+    function checkDrillAction(cellInfo) {
+        if (!currentPivotConfig || !cellInfo || cellInfo.row <= 1) return;
+
+        var val = cellInfo.value;
+        if (!val) return;
+
+        var trimmed = val.replace(/^\s+/, '');
+        var firstChar = trimmed.charAt(0);
+        if (firstChar !== '\u25B6' && firstChar !== '\u25BC') return;
+
+        // Avoid duplicate triggers for the same cell
+        var cellKey = cellInfo.row + ':' + cellInfo.col;
+        if (lastDrillCell === cellKey) return;
+        lastDrillCell = cellKey;
+        setTimeout(function() { lastDrillCell = null; }, 3000);
+
+        // Read drill info from stored document properties
+        window.Asc.plugin.callCommand(function() {
+            var sheet = Api.GetActiveSheet();
+            var props = Api.GetCustomProperties();
+            var meta = props.Get('_DA_' + sheet.GetName());
+            return meta || null;
+        }, false, false, function(metaJSON) {
+            if (!metaJSON) return;
+            try {
+                var meta = JSON.parse(metaJSON);
+                if (!meta.drillInfo) return;
+                var rowIdx = cellInfo.row - 2; // GetRow() is 1-based, header at row 1, data starts at row 2
+                var drillItem = meta.drillInfo[rowIdx];
+                if (!drillItem || !drillItem.hasChildren) return;
+
+                executeDrill(drillItem.hierName, drillItem.nodePath);
+            } catch(e) {
+                console.error('[' + PLUGIN_NAME + '] drill parse error:', e);
+            }
+        });
+    }
+
+    function executeDrill(hierName, nodePath) {
+        if (!currentPivotConfig) return;
+        drillInProgress = true;
+        var newState = currentPivotConfig.toggleNode(hierName, nodePath);
+        console.log('[' + PLUGIN_NAME + '] drill: ' + hierName + '/' + nodePath + ' → ' + (newState ? 'expanded' : 'collapsed'));
+        reExecuteWithCurrentConfig(function() {
+            drillInProgress = false;
         });
     }
 
@@ -334,37 +389,44 @@
         }
     }
 
-    function reExecuteWithCurrentConfig() {
-        if (!currentPivotConfig || !currentPivotConfig.source) return;
+    function reExecuteWithCurrentConfig(onDone) {
+        if (!currentPivotConfig || !currentPivotConfig.source) { if (onDone) onDone(); return; }
 
         var ds = dsManager.getActive();
-        if (!ds) return;
-
-        var params = currentPivotConfig.getQueryParams();
+        if (!ds) { if (onDone) onDone(); return; }
 
         ds.getMetadata(currentPivotConfig.source).then(function(meta) {
+            var params = currentPivotConfig.getQueryParams(meta);
             return ds.executeQuery(params).then(function(result) {
-                var numFormat = 'EU';
-                try { numFormat = localStorage.getItem('da_number_format') || 'EU'; } catch(e) {}
-
                 var cb = function(res) {
                     if (filtersPanel) {
                         filtersPanel.command('onConfigLoaded', currentPivotConfig.toJSON());
                     }
+                    if (onDone) onDone();
                 };
 
                 if (currentPivotConfig.isCrossTab()) {
                     var crossTab = currentPivotConfig.buildCrossTab(meta, result.data);
                     SheetWriter.insertCrossTab(crossTab, {
-                        numberFormat: numFormat,
+                        pivotConfig: currentPivotConfig.toJSON(),
+                        callback: cb
+                    });
+                } else if (currentPivotConfig.hasHierarchies(meta)) {
+                    var hierData = currentPivotConfig.buildHierarchicalData(meta, result.data);
+                    var columnFormats = currentPivotConfig.getColumnFormats(meta, true);
+                    SheetWriter.insert(hierData.rows, {
+                        columns: hierData.columns,
+                        columnFormats: columnFormats,
+                        drillInfo: hierData.drillInfo,
                         pivotConfig: currentPivotConfig.toJSON(),
                         callback: cb
                     });
                 } else {
                     var columns = currentPivotConfig.getColumnOrder(meta);
+                    var columnFormats = currentPivotConfig.getColumnFormats(meta);
                     SheetWriter.insert(result.data, {
                         columns: columns,
-                        numberFormat: numFormat,
+                        columnFormats: columnFormats,
                         pivotConfig: currentPivotConfig.toJSON(),
                         callback: cb
                     });
@@ -407,6 +469,7 @@
                 SheetWriter.insert(data.rows, {
                     columns: data.columns || null,
                     columnFormats: data.columnFormats || null,
+                    drillInfo: data.drillInfo || null,
                     pivotConfig: data.pivotConfig || null,
                     callback: afterInsert
                 });
@@ -467,6 +530,7 @@
                 SheetWriter.insert(data.rows, {
                     columns: data.columns || null,
                     columnFormats: data.columnFormats || null,
+                    drillInfo: data.drillInfo || null,
                     pivotConfig: data.pivotConfig || null
                 });
             }

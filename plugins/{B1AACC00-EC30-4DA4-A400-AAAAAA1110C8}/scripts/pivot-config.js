@@ -26,11 +26,23 @@
         this.valueFields  = (cfg.valueFields  || []).slice();
         this.filters      = {};
         this.sortField    = cfg.sortField    || null;
+        // hierarchyState: { [hierarchyName]: { expandedLevel: number, expandedNodes: { [path]: true } } }
+        this.hierarchyState = {};
 
         if (cfg.filters) {
             for (var k in cfg.filters) {
                 if (cfg.filters.hasOwnProperty(k)) {
                     this.filters[k] = cfg.filters[k].slice();
+                }
+            }
+        }
+        if (cfg.hierarchyState) {
+            for (var h in cfg.hierarchyState) {
+                if (cfg.hierarchyState.hasOwnProperty(h)) {
+                    this.hierarchyState[h] = {
+                        expandedLevel: cfg.hierarchyState[h].expandedLevel || 0,
+                        expandedNodes: cfg.hierarchyState[h].expandedNodes || {}
+                    };
                 }
             }
         }
@@ -84,9 +96,30 @@
     /**
      * Build query parameters. columnFields are requested as dimensions too so the
      * DataSource returns the cartesian product needed for pivoting.
+     * Hierarchies in rowFields are expanded into their constituent dimensions up to expandedLevel+1.
      */
-    PivotConfig.prototype.getQueryParams = function() {
-        var allDims = this.rowFields.concat(this.columnFields, this.filterFields);
+    PivotConfig.prototype.getQueryParams = function(metadata) {
+        var self = this;
+        var resolvedRowDims = [];
+
+        this.rowFields.forEach(function(name) {
+            var hier = self._findHierarchy(name, metadata);
+            if (hier) {
+                var maxLevel = self.getEffectiveLevel(name, hier);
+                for (var i = 0; i < maxLevel; i++) {
+                    var dimRef = hier.levels[i].dimensionRef;
+                    if (resolvedRowDims.indexOf(dimRef) === -1) {
+                        resolvedRowDims.push(dimRef);
+                    }
+                }
+            } else {
+                if (resolvedRowDims.indexOf(name) === -1) {
+                    resolvedRowDims.push(name);
+                }
+            }
+        });
+
+        var allDims = resolvedRowDims.concat(this.columnFields, this.filterFields);
         var filters = [];
         for (var dim in this.filters) {
             if (this.filters.hasOwnProperty(dim) && this.filters[dim].length > 0) {
@@ -102,15 +135,38 @@
     };
 
     /**
+     * Find a hierarchy definition by name from metadata.
+     * Returns the hierarchy object or null.
+     */
+    PivotConfig.prototype._findHierarchy = function(name, metadata) {
+        if (!metadata || !metadata.hierarchies) return null;
+        for (var i = 0; i < metadata.hierarchies.length; i++) {
+            if (metadata.hierarchies[i].name === name) return metadata.hierarchies[i];
+        }
+        return null;
+    };
+
+    /**
      * Get ordered column captions for flat layout (no cross-tab).
-     * Row dims first, then measures.
+     * Row dims first (expanding hierarchies), then measures.
      */
     PivotConfig.prototype.getColumnOrder = function(metadata) {
+        var self = this;
         var cols = [];
 
         this.rowFields.forEach(function(name) {
-            var dim = metadata.dimensions.find(function(d) { return d.name === name; });
-            cols.push(dim ? dim.caption : name);
+            var hier = self._findHierarchy(name, metadata);
+            if (hier) {
+                var maxLevel = self.getEffectiveLevel(name, hier);
+                for (var i = 0; i < maxLevel; i++) {
+                    var lev = hier.levels[i];
+                    var dim = metadata.dimensions.find(function(d) { return d.name === lev.dimensionRef; });
+                    cols.push(dim ? dim.caption : lev.caption);
+                }
+            } else {
+                var dim = metadata.dimensions.find(function(d) { return d.name === name; });
+                cols.push(dim ? dim.caption : name);
+            }
         });
 
         this.valueFields.forEach(function(name) {
@@ -126,12 +182,26 @@
      *   null for dimension columns, { unit, decimals, symbol } for measure columns.
      * `symbol` is the resolved display character (pre-resolved so callCommand doesn't need window access).
      */
-    PivotConfig.prototype.getColumnFormats = function(metadata) {
+    PivotConfig.prototype.getColumnFormats = function(metadata, isHierarchyMode) {
+        var self = this;
         var formats = [];
 
-        this.rowFields.forEach(function() {
+        if (isHierarchyMode) {
+            // In hierarchy mode, buildHierarchicalData outputs a single tree column
             formats.push(null);
-        });
+        } else {
+            this.rowFields.forEach(function(name) {
+                var hier = self._findHierarchy(name, metadata);
+                if (hier) {
+                    var maxLevel = self.getEffectiveLevel(name, hier);
+                    for (var i = 0; i < maxLevel; i++) {
+                        formats.push(null);
+                    }
+                } else {
+                    formats.push(null);
+                }
+            });
+        }
 
         this.valueFields.forEach(function(name) {
             var meas = metadata.measures.find(function(m) { return m.name === name; });
@@ -144,6 +214,302 @@
         });
 
         return formats;
+    };
+
+    /**
+     * Returns true if any rowField is a hierarchy.
+     */
+    PivotConfig.prototype.hasHierarchies = function(metadata) {
+        if (!metadata || !metadata.hierarchies || metadata.hierarchies.length === 0) return false;
+        var self = this;
+        return this.rowFields.some(function(name) {
+            return self._findHierarchy(name, metadata) !== null;
+        });
+    };
+
+    /**
+     * Set the expanded level for a hierarchy (global panel control).
+     */
+    PivotConfig.prototype.setHierarchyLevel = function(hierName, level) {
+        if (!this.hierarchyState[hierName]) {
+            this.hierarchyState[hierName] = { expandedLevel: 0, expandedNodes: {} };
+        }
+        this.hierarchyState[hierName].expandedLevel = level;
+        // Reset individual drill-down state when panel level changes
+        this.hierarchyState[hierName].expandedNodes = {};
+    };
+
+    /**
+     * Toggle a node's expanded state for drill-down.
+     * expandedNodes values: true = explicitly expanded, false = explicitly collapsed
+     * Nodes NOT in expandedNodes use globalLevel to determine state.
+     * @param {string} hierName
+     * @param {string} nodePath
+     * @returns {boolean} new expanded state
+     */
+    PivotConfig.prototype.toggleNode = function(hierName, nodePath) {
+        if (!this.hierarchyState[hierName]) {
+            this.hierarchyState[hierName] = { expandedLevel: 0, expandedNodes: {} };
+        }
+        var state = this.hierarchyState[hierName];
+        var nodes = state.expandedNodes;
+        var nodeLevel = nodePath.split('/').length - 1;
+        var isImplicitlyExpanded = nodeLevel < state.expandedLevel;
+
+        var currentlyExpanded;
+        if (nodes.hasOwnProperty(nodePath)) {
+            currentlyExpanded = nodes[nodePath];
+        } else {
+            currentlyExpanded = isImplicitlyExpanded;
+        }
+
+        if (currentlyExpanded) {
+            // Collapse: if implicitly expanded, mark as explicitly collapsed
+            if (isImplicitlyExpanded) {
+                nodes[nodePath] = false;
+            } else {
+                delete nodes[nodePath];
+            }
+            // Also collapse children
+            var prefix = nodePath + '/';
+            for (var key in nodes) {
+                if (nodes.hasOwnProperty(key) && key.indexOf(prefix) === 0) {
+                    delete nodes[key];
+                }
+            }
+            return false;
+        } else {
+            // Expand: if explicitly collapsed, just remove the override; otherwise mark as expanded
+            if (nodes[nodePath] === false) {
+                delete nodes[nodePath];
+            } else {
+                nodes[nodePath] = true;
+            }
+            return true;
+        }
+    };
+
+    /**
+     * Check if a node is expanded (considering both explicit state and globalLevel).
+     */
+    PivotConfig.prototype.isNodeExpanded = function(hierName, nodePath) {
+        var state = this.hierarchyState[hierName];
+        if (!state) return false;
+        var nodes = state.expandedNodes || {};
+        if (nodes.hasOwnProperty(nodePath)) {
+            return nodes[nodePath];
+        }
+        var nodeLevel = nodePath.split('/').length - 1;
+        return nodeLevel < state.expandedLevel;
+    };
+
+    /**
+     * Get the effective query level: max of expandedLevel and deepest expanded node + 1.
+     */
+    PivotConfig.prototype.getEffectiveLevel = function(hierName, hierarchy) {
+        var state = this.hierarchyState[hierName];
+        if (!state) return 1;
+        var level = state.expandedLevel;
+        if (state.expandedNodes) {
+            for (var path in state.expandedNodes) {
+                if (state.expandedNodes.hasOwnProperty(path) && state.expandedNodes[path] === true) {
+                    var depth = path.split('/').length;
+                    if (depth > level) level = depth;
+                }
+            }
+        }
+        return Math.min(level + 1, hierarchy.levels.length);
+    };
+
+    /**
+     * Build hierarchical data with drill-down indicators.
+     * Uses a SINGLE tree column (hierarchy caption) with ▶/▼ + indentation,
+     * followed by measure columns.
+     *
+     * Generates tree nodes for EACH unique prefix path in the data, so parent rows
+     * always appear above their children.
+     *
+     * Returns { columns: string[], rows: Object[], drillColumn: number, drillInfo: Object[] }
+     */
+    PivotConfig.prototype.buildHierarchicalData = function(metadata, flatData) {
+        var self = this;
+        if (!flatData || flatData.length === 0) return { columns: [], rows: [], drillColumn: -1, drillInfo: [] };
+
+        // Find the hierarchy
+        var hierName = null;
+        var hierarchy = null;
+        var hierDimCaptions = [];
+
+        this.rowFields.forEach(function(name) {
+            var hier = self._findHierarchy(name, metadata);
+            if (hier) {
+                hierName = name;
+                hierarchy = hier;
+                var maxLevel = self.getEffectiveLevel(name, hier);
+                for (var i = 0; i < maxLevel; i++) {
+                    var lev = hier.levels[i];
+                    var dim = metadata.dimensions.find(function(d) { return d.name === lev.dimensionRef; });
+                    hierDimCaptions.push(dim ? dim.caption : lev.caption);
+                }
+            }
+        });
+
+        if (!hierarchy || hierDimCaptions.length === 0) {
+            return { columns: [], rows: flatData, drillColumn: -1, drillInfo: [] };
+        }
+
+        var totalHierDepth = hierarchy.levels.length;
+        var state = self.hierarchyState[hierName] || { expandedLevel: 0, expandedNodes: {} };
+        var expandedNodes = state.expandedNodes || {};
+        var globalLevel = state.expandedLevel || 0;
+
+        // Output columns: single tree column + measures
+        var treeColName = hierarchy.caption || hierName;
+        var measureCaptions = [];
+        this.valueFields.forEach(function(name) {
+            var m = metadata.measures.find(function(x) { return x.name === name; });
+            measureCaptions.push(m ? m.caption : name);
+        });
+        var columns = [treeColName].concat(measureCaptions);
+
+        // Step 1: Build a tree of unique nodes from the flat data.
+        // Each node: { path, level, displayValue, measures (aggregated from children) }
+        var nodeMap = {}; // path → { displayValue, measures, level }
+
+        for (var r = 0; r < flatData.length; r++) {
+            var row = flatData[r];
+            // Generate a node for EACH prefix level
+            for (var lvl = 0; lvl < hierDimCaptions.length; lvl++) {
+                var val = row[hierDimCaptions[lvl]];
+                if (!val) break;
+                var parts = [];
+                for (var p = 0; p <= lvl; p++) parts.push(row[hierDimCaptions[p]]);
+                var path = parts.join('/');
+
+                if (!nodeMap[path]) {
+                    nodeMap[path] = { displayValue: val, level: lvl, measures: {} };
+                    for (var m = 0; m < measureCaptions.length; m++) {
+                        nodeMap[path].measures[measureCaptions[m]] = 0;
+                    }
+                }
+                // Aggregate measures at this node (sum of all rows that pass through)
+                if (lvl === hierDimCaptions.length - 1) {
+                    for (var m = 0; m < measureCaptions.length; m++) {
+                        var v = parseFloat(row[measureCaptions[m]]);
+                        if (!isNaN(v)) nodeMap[path].measures[measureCaptions[m]] += v;
+                    }
+                }
+            }
+        }
+
+        // Also aggregate measures up to parent nodes
+        var allPaths = Object.keys(nodeMap).sort();
+        for (var i = 0; i < allPaths.length; i++) {
+            var node = nodeMap[allPaths[i]];
+            if (node.level > 0) {
+                var parentParts = allPaths[i].split('/');
+                parentParts.pop();
+                var parentPath = parentParts.join('/');
+                if (nodeMap[parentPath] && node.level === hierDimCaptions.length - 1) {
+                    // Don't double-aggregate; parent sums will be built separately below
+                }
+            }
+        }
+
+        // Rebuild parent measures as sum of their immediate children at deepest query level
+        // (simpler: just sum all leaf descendants)
+        for (var i = 0; i < allPaths.length; i++) {
+            var node = nodeMap[allPaths[i]];
+            if (node.level < hierDimCaptions.length - 1) {
+                // Reset and sum from children
+                for (var m = 0; m < measureCaptions.length; m++) {
+                    node.measures[measureCaptions[m]] = 0;
+                }
+                var prefix = allPaths[i] + '/';
+                for (var j = 0; j < allPaths.length; j++) {
+                    var child = nodeMap[allPaths[j]];
+                    if (allPaths[j].indexOf(prefix) === 0 && child.level === hierDimCaptions.length - 1) {
+                        for (var m = 0; m < measureCaptions.length; m++) {
+                            node.measures[measureCaptions[m]] += child.measures[measureCaptions[m]];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Step 2: Sort nodes for tree display (alphabetical within each parent group)
+        allPaths.sort(function(a, b) {
+            var pa = a.split('/'), pb = b.split('/');
+            for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
+                var va = pa[i] || '', vb = pb[i] || '';
+                var cmp = va.localeCompare(vb);
+                if (cmp !== 0) return cmp;
+            }
+            return 0;
+        });
+
+        // Step 3: Determine visibility and build output
+        var visibleRows = [];
+        var drillInfo = [];
+
+        function isNodeExpanded(path, level) {
+            // Explicit override takes priority
+            if (expandedNodes.hasOwnProperty(path)) {
+                return expandedNodes[path];
+            }
+            // Otherwise, panel auto-expands all at depth < globalLevel
+            return level < globalLevel;
+        }
+
+        function isVisible(path, level) {
+            if (level === 0) return true; // top-level always visible
+            // Check all ancestors are expanded
+            var parts = path.split('/');
+            for (var i = 1; i <= level; i++) {
+                var ancestorPath = parts.slice(0, i).join('/');
+                var ancestorLevel = i - 1;
+                if (!isNodeExpanded(ancestorPath, ancestorLevel)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        for (var i = 0; i < allPaths.length; i++) {
+            var path = allPaths[i];
+            var node = nodeMap[path];
+
+            if (!isVisible(path, node.level)) continue;
+
+            var expanded = isNodeExpanded(path, node.level);
+            var hasChildren = node.level < totalHierDepth - 1;
+
+            var prefix = hasChildren ? (expanded ? '\u25BC ' : '\u25B6 ') : '    ';
+            var indent = '';
+            for (var ind = 0; ind < node.level; ind++) indent += '    ';
+
+            var outRow = {};
+            outRow[treeColName] = prefix + indent + node.displayValue;
+            for (var m = 0; m < measureCaptions.length; m++) {
+                outRow[measureCaptions[m]] = node.measures[measureCaptions[m]];
+            }
+
+            visibleRows.push(outRow);
+            drillInfo.push({
+                hierName: hierName,
+                nodePath: path,
+                level: node.level,
+                expanded: expanded,
+                hasChildren: hasChildren
+            });
+        }
+
+        return {
+            columns: columns,
+            rows: visibleRows,
+            drillColumn: 0,
+            drillInfo: drillInfo
+        };
     };
 
     /**
@@ -276,14 +642,15 @@
 
     PivotConfig.prototype.toJSON = function() {
         return {
-            source:       this.source,
-            sourceName:   this.sourceName,
-            rowFields:    this.rowFields.slice(),
-            columnFields: this.columnFields.slice(),
-            filterFields: this.filterFields.slice(),
-            valueFields:  this.valueFields.slice(),
-            filters:      JSON.parse(JSON.stringify(this.filters)),
-            sortField:    this.sortField
+            source:         this.source,
+            sourceName:     this.sourceName,
+            rowFields:      this.rowFields.slice(),
+            columnFields:   this.columnFields.slice(),
+            filterFields:   this.filterFields.slice(),
+            valueFields:    this.valueFields.slice(),
+            filters:        JSON.parse(JSON.stringify(this.filters)),
+            sortField:      this.sortField,
+            hierarchyState: JSON.parse(JSON.stringify(this.hierarchyState))
         };
     };
 

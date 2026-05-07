@@ -67,6 +67,7 @@
         window.Asc.scope.columns = options.columns || null;
         window.Asc.scope.fmtJSON = fmtArray.length > 0 ? JSON.stringify(fmtArray) : '';
         window.Asc.scope.pivotConfigJSON = options.pivotConfig ? JSON.stringify(options.pivotConfig) : '';
+        window.Asc.scope.drillInfoJSON = options.drillInfo ? JSON.stringify(options.drillInfo) : '';
 
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
@@ -78,6 +79,9 @@
 
             var columnFormats = [];
             if (fmtJSON) { try { columnFormats = JSON.parse(fmtJSON); } catch(e) { columnFormats = []; } }
+
+            var drillInfo = [];
+            if (Asc.scope.drillInfoJSON) { try { drillInfo = JSON.parse(Asc.scope.drillInfoJSON); } catch(e) { drillInfo = []; } }
 
             if (!data || data.length === 0) return { error: 'Sin datos en scope' };
 
@@ -112,6 +116,7 @@
             var headerBg = Api.CreateColorFromRGB(30, 58, 95);
             var headerFont = Api.CreateColorFromRGB(255, 255, 255);
             var altRowBg = Api.CreateColorFromRGB(245, 248, 252);
+            var drillColor = Api.CreateColorFromRGB(0, 100, 180);
 
             var colWidths = [];
             for (var c = 0; c < headers.length; c++) {
@@ -136,6 +141,11 @@
                         if (display.length > colWidths[c]) colWidths[c] = display.length;
                     }
                     if (r % 2 === 1) cell.SetFillColor(altRowBg);
+                    // Style drill cells with color to indicate clickability
+                    if (c === 0 && drillInfo[r] && drillInfo[r].hasChildren) {
+                        cell.SetFontColor(drillColor);
+                        cell.SetBold(true);
+                    }
                 }
             }
 
@@ -161,11 +171,10 @@
                 oSheet.SetColumnWidth(c, charW);
             }
 
-            // Save meta to CustomProperties
-            props.Add('_DA_' + sheetName, JSON.stringify({ rows: numRows, cols: numCols, pivotConfig: pivotJSON }));
+            // Save meta + drillInfo to CustomProperties
+            props.Add('_DA_' + sheetName, JSON.stringify({ rows: numRows, cols: numCols, pivotConfig: pivotJSON, drillInfo: drillInfo }));
 
-            oSheet.GetRange('A1').Select();
-            return { success: true, count: data.length, columns: headers.length, sheetName: sheetName, formatsApplied: formatsApplied };
+            return { success: true, count: data.length, columns: headers.length, sheetName: sheetName, formatsApplied: formatsApplied, hasDrill: drillInfo.length > 0 };
 
         }, false, true, function(result) {
             if (options.callback) options.callback(result || { success: true });

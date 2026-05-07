@@ -31,7 +31,9 @@
         'ventas/ventas_por_segmento': {
             dimensions: [
                 { name: 'ZSEGMEN', caption: 'Segmento' },
+                { name: 'ZPAIS', caption: 'País' },
                 { name: 'ZREGION', caption: 'Región' },
+                { name: 'ZCIUDAD', caption: 'Ciudad' },
                 { name: '0CALMONTH', caption: 'Mes' }
             ],
             measures: [
@@ -39,6 +41,17 @@
                 { name: 'ZMARGEN', caption: 'Margen', dataType: 'N', unit: 'EUR', decimals: 2 },
                 { name: 'ZUNIDADES', caption: 'Unidades', dataType: 'I', unit: 'uds', decimals: 0 },
                 { name: 'ZPCT_MARGEN', caption: '% Margen', dataType: 'N', unit: '%', decimals: 2 }
+            ],
+            hierarchies: [
+                {
+                    name: 'HGEO',
+                    caption: 'Geografía',
+                    levels: [
+                        { name: 'ZREGION', caption: 'Región', dimensionRef: 'ZREGION' },
+                        { name: 'ZPAIS', caption: 'País', dimensionRef: 'ZPAIS' },
+                        { name: 'ZCIUDAD', caption: 'Ciudad', dimensionRef: 'ZCIUDAD' }
+                    ]
+                }
             ]
         },
         'ventas/ventas_por_cliente': {
@@ -76,11 +89,45 @@
                 { code: 'ONL', caption: 'Online' },
                 { code: 'IND', caption: 'Industrial' }
             ],
+            ZPAIS: [
+                { code: 'ES', caption: 'España' },
+                { code: 'FR', caption: 'Francia' },
+                { code: 'DE', caption: 'Alemania' },
+                { code: 'UK', caption: 'Reino Unido' },
+                { code: 'US', caption: 'Estados Unidos' },
+                { code: 'CA', caption: 'Canadá' },
+                { code: 'MX', caption: 'México' },
+                { code: 'BR', caption: 'Brasil' },
+                { code: 'JP', caption: 'Japón' },
+                { code: 'CN', caption: 'China' }
+            ],
             ZREGION: [
                 { code: 'EUR', caption: 'Europa' },
                 { code: 'NAM', caption: 'Norteamérica' },
                 { code: 'LATAM', caption: 'Latinoamérica' },
                 { code: 'APAC', caption: 'Asia-Pacífico' }
+            ],
+            ZCIUDAD: [
+                { code: 'MAD', caption: 'Madrid' },
+                { code: 'BCN', caption: 'Barcelona' },
+                { code: 'PAR', caption: 'París' },
+                { code: 'LYO', caption: 'Lyon' },
+                { code: 'BER', caption: 'Berlín' },
+                { code: 'MUN', caption: 'Múnich' },
+                { code: 'LON', caption: 'Londres' },
+                { code: 'MAN', caption: 'Manchester' },
+                { code: 'NYC', caption: 'Nueva York' },
+                { code: 'LAX', caption: 'Los Ángeles' },
+                { code: 'TOR', caption: 'Toronto' },
+                { code: 'VAN', caption: 'Vancouver' },
+                { code: 'MEX', caption: 'Ciudad de México' },
+                { code: 'GDL', caption: 'Guadalajara' },
+                { code: 'SAO', caption: 'São Paulo' },
+                { code: 'RIO', caption: 'Río de Janeiro' },
+                { code: 'TKY', caption: 'Tokio' },
+                { code: 'OSK', caption: 'Osaka' },
+                { code: 'SHA', caption: 'Shanghái' },
+                { code: 'BEI', caption: 'Pekín' }
             ],
             '0CALMONTH': [
                 { code: '202601', caption: 'Enero 2026' },
@@ -143,6 +190,32 @@
         }
     };
 
+    // Parent-child relationships for hierarchies
+    const HIERARCHY_RELATIONS = {
+        'ventas/ventas_por_segmento': {
+            // ZREGION → ZPAIS (which countries belong to which region)
+            'ZREGION>ZPAIS': {
+                'EUR': ['ES', 'FR', 'DE', 'UK'],
+                'NAM': ['US', 'CA'],
+                'LATAM': ['MX', 'BR'],
+                'APAC': ['JP', 'CN']
+            },
+            // ZPAIS → ZCIUDAD (which cities belong to which country)
+            'ZPAIS>ZCIUDAD': {
+                'ES': ['MAD', 'BCN'],
+                'FR': ['PAR', 'LYO'],
+                'DE': ['BER', 'MUN'],
+                'UK': ['LON', 'MAN'],
+                'US': ['NYC', 'LAX'],
+                'CA': ['TOR', 'VAN'],
+                'MX': ['MEX', 'GDL'],
+                'BR': ['SAO', 'RIO'],
+                'JP': ['TKY', 'OSK'],
+                'CN': ['SHA', 'BEI']
+            }
+        }
+    };
+
     function seededRandom(seed) {
         let s = seed;
         return function() {
@@ -164,6 +237,8 @@
             ? measures
             : meta.measures.map(m => m.name);
 
+        const relations = HIERARCHY_RELATIONS[sourceName] || {};
+
         const dimMembers = activeDims.map(d => {
             let members = dimValues[d] || [];
             if (filters) {
@@ -178,7 +253,7 @@
         const rows = [];
         const rng = seededRandom(sourceName.length * 1000 + activeDims.length);
 
-        function buildRows(dimIdx, currentRow) {
+        function buildRows(dimIdx, currentRow, parentCodes) {
             if (dimIdx >= dimMembers.length) {
                 const row = { ...currentRow };
                 activeMeasures.forEach(mName => {
@@ -201,14 +276,28 @@
             const dimMeta = meta.dimensions.find(d => d.name === dim);
             const caption = dimMeta ? dimMeta.caption : dim;
 
-            members.forEach(member => {
+            // Filter members by parent-child hierarchy relationships
+            let filteredMembers = members;
+            for (const parentDim of Object.keys(parentCodes)) {
+                const relKey = parentDim + '>' + dim;
+                if (relations[relKey]) {
+                    const parentCode = parentCodes[parentDim];
+                    const allowedCodes = relations[relKey][parentCode] || [];
+                    if (allowedCodes.length > 0) {
+                        filteredMembers = filteredMembers.filter(m => allowedCodes.includes(m.code));
+                    }
+                }
+            }
+
+            filteredMembers.forEach(member => {
                 const next = { ...currentRow };
                 next[caption] = member.caption;
-                buildRows(dimIdx + 1, next);
+                const nextParents = { ...parentCodes, [dim]: member.code };
+                buildRows(dimIdx + 1, next, nextParents);
             });
         }
 
-        buildRows(0, {});
+        buildRows(0, {}, {});
         return rows;
     }
 
@@ -242,6 +331,7 @@
         SOURCES: MOCK_SOURCES,
         METADATA: MOCK_METADATA,
         DIMENSION_VALUES: MOCK_DIMENSION_VALUES,
+        HIERARCHY_RELATIONS: HIERARCHY_RELATIONS,
         generateQueryData,
         generateColumns
     };

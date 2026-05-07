@@ -47,10 +47,14 @@
             if (!meta) {
                 throw new Error('Source not found: ' + sourceName);
             }
-            return {
+            var result = {
                 dimensions: meta.dimensions.slice(),
                 measures: meta.measures.slice()
             };
+            if (meta.hierarchies) {
+                result.hierarchies = meta.hierarchies.slice();
+            }
+            return result;
         }
 
         async getDimensionValues(sourceName, dimensionName) {
