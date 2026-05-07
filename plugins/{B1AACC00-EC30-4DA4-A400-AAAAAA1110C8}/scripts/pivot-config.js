@@ -448,52 +448,53 @@
             return 0;
         });
 
-        // Step 3: Determine visibility and build output
+        // Step 3: Build output with subtotals using recursive tree traversal
         var visibleRows = [];
         var drillInfo = [];
 
         function isNodeExpanded(path, level) {
-            // Explicit override takes priority
             if (expandedNodes.hasOwnProperty(path)) {
                 return expandedNodes[path];
             }
-            // Otherwise, panel auto-expands all at depth < globalLevel
             return level < globalLevel;
         }
 
-        function isVisible(path, level) {
-            if (level === 0) return true; // top-level always visible
-            // Check all ancestors are expanded
-            var parts = path.split('/');
-            for (var i = 1; i <= level; i++) {
-                var ancestorPath = parts.slice(0, i).join('/');
-                var ancestorLevel = i - 1;
-                if (!isNodeExpanded(ancestorPath, ancestorLevel)) {
-                    return false;
-                }
-            }
-            return true;
+        function makeIndent(level) {
+            var s = '';
+            for (var i = 0; i < level; i++) s += '    ';
+            return s;
         }
 
-        for (var i = 0; i < allPaths.length; i++) {
-            var path = allPaths[i];
+        function getDirectChildren(parentPath, parentLevel) {
+            var prefix = parentPath + '/';
+            var childLevel = parentLevel + 1;
+            var children = [];
+            for (var i = 0; i < allPaths.length; i++) {
+                var p = allPaths[i];
+                if (nodeMap[p].level === childLevel && p.indexOf(prefix) === 0) {
+                    // Ensure it's a direct child (no further slashes after prefix)
+                    var remainder = p.substring(prefix.length);
+                    if (remainder.indexOf('/') === -1) {
+                        children.push(p);
+                    }
+                }
+            }
+            return children;
+        }
+
+        function emitNode(path) {
             var node = nodeMap[path];
-
-            if (!isVisible(path, node.level)) continue;
-
             var expanded = isNodeExpanded(path, node.level);
             var hasChildren = node.level < totalHierDepth - 1;
 
             var prefix = hasChildren ? (expanded ? '\u25BC ' : '\u25B6 ') : '    ';
-            var indent = '';
-            for (var ind = 0; ind < node.level; ind++) indent += '    ';
+            var indent = makeIndent(node.level);
 
             var outRow = {};
             outRow[treeColName] = prefix + indent + node.displayValue;
             for (var m = 0; m < measureCaptions.length; m++) {
                 outRow[measureCaptions[m]] = node.measures[measureCaptions[m]];
             }
-
             visibleRows.push(outRow);
             drillInfo.push({
                 hierName: hierName,
@@ -502,7 +503,55 @@
                 expanded: expanded,
                 hasChildren: hasChildren
             });
+
+            // If expanded, emit children recursively, then subtotal
+            if (expanded && hasChildren) {
+                var children = getDirectChildren(path, node.level);
+                for (var c = 0; c < children.length; c++) {
+                    emitNode(children[c]);
+                }
+                // Subtotal row after the group
+                var totalRow = {};
+                totalRow[treeColName] = makeIndent(node.level + 1) + 'Total ' + node.displayValue;
+                for (var m = 0; m < measureCaptions.length; m++) {
+                    totalRow[measureCaptions[m]] = node.measures[measureCaptions[m]];
+                }
+                visibleRows.push(totalRow);
+                drillInfo.push({
+                    hierName: hierName,
+                    nodePath: path,
+                    level: node.level,
+                    isTotal: true
+                });
+            }
         }
+
+        // Emit all top-level nodes
+        var topLevelPaths = [];
+        for (var i = 0; i < allPaths.length; i++) {
+            if (nodeMap[allPaths[i]].level === 0) topLevelPaths.push(allPaths[i]);
+        }
+        for (var i = 0; i < topLevelPaths.length; i++) {
+            emitNode(topLevelPaths[i]);
+        }
+
+        // Gran Total row
+        var grandRow = {};
+        grandRow[treeColName] = 'Gran Total';
+        for (var m = 0; m < measureCaptions.length; m++) {
+            var sum = 0;
+            for (var i = 0; i < topLevelPaths.length; i++) {
+                sum += nodeMap[topLevelPaths[i]].measures[measureCaptions[m]];
+            }
+            grandRow[measureCaptions[m]] = sum;
+        }
+        visibleRows.push(grandRow);
+        drillInfo.push({
+            hierName: hierName,
+            nodePath: '',
+            level: -1,
+            isGrandTotal: true
+        });
 
         return {
             columns: columns,
@@ -510,6 +559,108 @@
             drillColumn: 0,
             drillInfo: drillInfo
         };
+    };
+
+    /**
+     * Add subtotals and Grand Total to flat (non-hierarchical) data.
+     * Groups by the first row dimension, inserts subtotal after each group,
+     * and appends a Grand Total at the end.
+     * Returns { rows, drillInfo }.
+     */
+    PivotConfig.prototype.addTotalsToFlatData = function(metadata, flatData, columns) {
+        if (!flatData || flatData.length === 0) return { rows: flatData, drillInfo: [] };
+
+        var self = this;
+        var measureCaptions = [];
+        this.valueFields.forEach(function(name) {
+            var m = metadata.measures.find(function(x) { return x.name === name; });
+            measureCaptions.push(m ? m.caption : name);
+        });
+
+        // Resolve dimension captions for row fields
+        var dimCaptions = [];
+        this.rowFields.forEach(function(name) {
+            var dim = metadata.dimensions.find(function(d) { return d.name === name; });
+            dimCaptions.push(dim ? dim.caption : name);
+        });
+
+        var rows = [];
+        var drillInfo = [];
+
+        // Only add subtotals if there are 2+ row dimensions
+        if (dimCaptions.length >= 2) {
+            var groupCol = dimCaptions[0];
+            var currentGroup = null;
+            var groupMeasures = {};
+
+            for (var r = 0; r < flatData.length; r++) {
+                var groupVal = flatData[r][groupCol];
+
+                // Detect group change
+                if (groupVal !== currentGroup && currentGroup !== null) {
+                    // Emit subtotal for previous group
+                    var subRow = {};
+                    subRow[groupCol] = 'Total ' + currentGroup;
+                    for (var m = 0; m < measureCaptions.length; m++) {
+                        subRow[measureCaptions[m]] = groupMeasures[measureCaptions[m]];
+                    }
+                    rows.push(subRow);
+                    drillInfo.push({ isTotal: true });
+                    groupMeasures = {};
+                }
+
+                if (groupVal !== currentGroup) {
+                    currentGroup = groupVal;
+                    for (var m = 0; m < measureCaptions.length; m++) {
+                        groupMeasures[measureCaptions[m]] = 0;
+                    }
+                }
+
+                // Accumulate measures
+                for (var m = 0; m < measureCaptions.length; m++) {
+                    var v = parseFloat(flatData[r][measureCaptions[m]]);
+                    if (!isNaN(v)) groupMeasures[measureCaptions[m]] += v;
+                }
+
+                rows.push(flatData[r]);
+                drillInfo.push(null);
+            }
+
+            // Last group subtotal
+            if (currentGroup !== null) {
+                var subRow = {};
+                subRow[groupCol] = 'Total ' + currentGroup;
+                for (var m = 0; m < measureCaptions.length; m++) {
+                    subRow[measureCaptions[m]] = groupMeasures[measureCaptions[m]];
+                }
+                rows.push(subRow);
+                drillInfo.push({ isTotal: true });
+            }
+        } else {
+            // Single dimension: no subtotals, just copy data
+            for (var r = 0; r < flatData.length; r++) {
+                rows.push(flatData[r]);
+                drillInfo.push(null);
+            }
+        }
+
+        // Gran Total
+        var grandRow = {};
+        if (columns && columns.length > 0) {
+            grandRow[columns[0]] = 'Gran Total';
+        }
+        for (var m = 0; m < measureCaptions.length; m++) {
+            var sum = 0;
+            for (var r = 0; r < flatData.length; r++) {
+                var v = parseFloat(flatData[r][measureCaptions[m]]);
+                if (!isNaN(v)) sum += v;
+            }
+            grandRow[measureCaptions[m]] = sum;
+        }
+        rows.push(grandRow);
+        drillInfo.push({ isGrandTotal: true });
+
+        return { rows: rows, drillInfo: drillInfo };
     };
 
     /**

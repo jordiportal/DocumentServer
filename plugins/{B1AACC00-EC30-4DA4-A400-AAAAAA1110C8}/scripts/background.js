@@ -9,7 +9,7 @@
 (function(window, undefined) {
     'use strict';
 
-    var VERSION = '2.5.3';
+    var VERSION = '2.6.0';
     var PLUGIN_NAME = 'DataAnalyzer';
 
     var dsManager        = null;
@@ -424,9 +424,11 @@
                 } else {
                     var columns = currentPivotConfig.getColumnOrder(meta);
                     var columnFormats = currentPivotConfig.getColumnFormats(meta);
-                    SheetWriter.insert(result.data, {
+                    var totalData = currentPivotConfig.addTotalsToFlatData(meta, result.data, columns);
+                    SheetWriter.insert(totalData.rows, {
                         columns: columns,
                         columnFormats: columnFormats,
+                        drillInfo: totalData.drillInfo,
                         pivotConfig: currentPivotConfig.toJSON(),
                         callback: cb
                     });

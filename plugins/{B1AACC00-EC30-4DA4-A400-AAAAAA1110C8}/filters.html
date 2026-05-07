@@ -706,10 +706,12 @@
             } else {
                 var columns = pivotConfig.getColumnOrder(metadata);
                 var columnFormats = pivotConfig.getColumnFormats(metadata);
+                var totalData = pivotConfig.addTotalsToFlatData(metadata, result.data, columns);
                 payload = {
-                    rows: result.data,
+                    rows: totalData.rows,
                     columns: columns,
                     columnFormats: columnFormats,
+                    drillInfo: totalData.drillInfo,
                     pivotConfig: pivotConfig.toJSON()
                 };
             }

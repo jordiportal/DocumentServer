@@ -117,6 +117,8 @@
             var headerFont = Api.CreateColorFromRGB(255, 255, 255);
             var altRowBg = Api.CreateColorFromRGB(245, 248, 252);
             var drillColor = Api.CreateColorFromRGB(0, 100, 180);
+            var subtotalBg = Api.CreateColorFromRGB(220, 230, 241);
+            var grandTotalBg = Api.CreateColorFromRGB(189, 205, 224);
 
             var colWidths = [];
             for (var c = 0; c < headers.length; c++) {
@@ -127,6 +129,9 @@
             }
 
             for (var r = 0; r < data.length; r++) {
+                var rowInfo = drillInfo[r] || null;
+                var isTotalRow = rowInfo && (rowInfo.isTotal || rowInfo.isGrandTotal);
+
                 for (var c = 0; c < headers.length; c++) {
                     var cell = oSheet.GetRangeByNumber(r + 1, c);
                     var value = data[r][headers[c]];
@@ -140,11 +145,22 @@
                         cell.SetValue(display);
                         if (display.length > colWidths[c]) colWidths[c] = display.length;
                     }
-                    if (r % 2 === 1) cell.SetFillColor(altRowBg);
-                    // Style drill cells with color to indicate clickability
-                    if (c === 0 && drillInfo[r] && drillInfo[r].hasChildren) {
-                        cell.SetFontColor(drillColor);
+
+                    // Style total rows
+                    if (isTotalRow) {
                         cell.SetBold(true);
+                        if (rowInfo.isGrandTotal) {
+                            cell.SetFillColor(grandTotalBg);
+                        } else {
+                            cell.SetFillColor(subtotalBg);
+                        }
+                    } else {
+                        if (r % 2 === 1) cell.SetFillColor(altRowBg);
+                        // Style drill cells with color to indicate clickability
+                        if (c === 0 && rowInfo && rowInfo.hasChildren) {
+                            cell.SetFontColor(drillColor);
+                            cell.SetBold(true);
+                        }
                     }
                 }
             }
