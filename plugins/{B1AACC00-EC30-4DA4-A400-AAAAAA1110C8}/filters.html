@@ -507,6 +507,46 @@
             addMenuSep();
         }
 
+        // Aggregation type for measures in valueFields zone
+        if (fieldDef.type === 'measure' && currentZone === 'valueFields') {
+            addMenuLabel('Total:');
+            var aggTypes = [
+                { id: 'sum', label: 'Suma' },
+                { id: 'avg', label: 'Promedio' },
+                { id: 'none', label: 'Sin total' }
+            ];
+            var currentAgg = pivotConfig.getAggregation(fieldDef.name);
+            aggTypes.forEach(function(agg) {
+                var prefix = (agg.id === currentAgg) ? '\u2714 ' : '   ';
+                addMenuItem(prefix + agg.label, function() {
+                    pivotConfig.setAggregation(fieldDef.name, agg.id);
+                    renderAllZones();
+                    notifyChange();
+                });
+            });
+            addMenuSep();
+        }
+
+        // Subtotals/Grand Total toggles for dimensions in rowFields or columnFields
+        if ((fieldDef.type === 'dimension' || fieldDef.type === 'hierarchy') && (currentZone === 'rowFields' || currentZone === 'columnFields')) {
+            addMenuLabel('Totales:');
+            if (currentZone === 'rowFields') {
+                var subPrefix = pivotConfig.showSubtotals ? '\u2714 ' : '   ';
+                addMenuItem(subPrefix + 'Subtotales', function() {
+                    pivotConfig.showSubtotals = !pivotConfig.showSubtotals;
+                    renderAllZones();
+                    notifyChange();
+                });
+            }
+            var gtPrefix = pivotConfig.showGrandTotal ? '\u2714 ' : '   ';
+            addMenuItem(gtPrefix + 'Gran Total', function() {
+                pivotConfig.showGrandTotal = !pivotConfig.showGrandTotal;
+                renderAllZones();
+                notifyChange();
+            });
+            addMenuSep();
+        }
+
         // Move to other zones
         zones.forEach(function(z) {
             if (z === currentZone) return;

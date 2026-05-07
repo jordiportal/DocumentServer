@@ -26,6 +26,12 @@
         this.valueFields  = (cfg.valueFields  || []).slice();
         this.filters      = {};
         this.sortField    = cfg.sortField    || null;
+        // aggregations: { [measureName]: 'sum' | 'avg' | 'none' }
+        this.aggregations = {};
+        // showSubtotals: whether to show subtotal rows per group
+        this.showSubtotals = cfg.showSubtotals !== false;
+        // showGrandTotal: whether to show the Grand Total row
+        this.showGrandTotal = cfg.showGrandTotal !== false;
         // hierarchyState: { [hierarchyName]: { expandedLevel: number, expandedNodes: { [path]: true } } }
         this.hierarchyState = {};
 
@@ -33,6 +39,13 @@
             for (var k in cfg.filters) {
                 if (cfg.filters.hasOwnProperty(k)) {
                     this.filters[k] = cfg.filters[k].slice();
+                }
+            }
+        }
+        if (cfg.aggregations) {
+            for (var k in cfg.aggregations) {
+                if (cfg.aggregations.hasOwnProperty(k)) {
+                    this.aggregations[k] = cfg.aggregations[k];
                 }
             }
         }
@@ -49,6 +62,19 @@
     }
 
     PivotConfig.ZONES = ZONES;
+
+    /**
+     * Get the aggregation type for a measure. Defaults to 'sum'.
+     * @param {string} measureName
+     * @returns {'sum'|'avg'|'none'}
+     */
+    PivotConfig.prototype.getAggregation = function(measureName) {
+        return this.aggregations[measureName] || 'sum';
+    };
+
+    PivotConfig.prototype.setAggregation = function(measureName, type) {
+        this.aggregations[measureName] = type;
+    };
 
     /**
      * Returns true when the layout is a cross-tab (has column dimensions).
@@ -373,12 +399,10 @@
         var columns = [treeColName].concat(measureCaptions);
 
         // Step 1: Build a tree of unique nodes from the flat data.
-        // Each node: { path, level, displayValue, measures (aggregated from children) }
-        var nodeMap = {}; // path → { displayValue, measures, level }
+        var nodeMap = {}; // path → { displayValue, measures, leafCount, level }
 
         for (var r = 0; r < flatData.length; r++) {
             var row = flatData[r];
-            // Generate a node for EACH prefix level
             for (var lvl = 0; lvl < hierDimCaptions.length; lvl++) {
                 var val = row[hierDimCaptions[lvl]];
                 if (!val) break;
@@ -387,13 +411,13 @@
                 var path = parts.join('/');
 
                 if (!nodeMap[path]) {
-                    nodeMap[path] = { displayValue: val, level: lvl, measures: {} };
+                    nodeMap[path] = { displayValue: val, level: lvl, measures: {}, leafCount: 0 };
                     for (var m = 0; m < measureCaptions.length; m++) {
                         nodeMap[path].measures[measureCaptions[m]] = 0;
                     }
                 }
-                // Aggregate measures at this node (sum of all rows that pass through)
                 if (lvl === hierDimCaptions.length - 1) {
+                    nodeMap[path].leafCount++;
                     for (var m = 0; m < measureCaptions.length; m++) {
                         var v = parseFloat(row[measureCaptions[m]]);
                         if (!isNaN(v)) nodeMap[path].measures[measureCaptions[m]] += v;
@@ -402,29 +426,15 @@
             }
         }
 
-        // Also aggregate measures up to parent nodes
+        // Rebuild parent measures as sum of leaf descendants + count leaves
         var allPaths = Object.keys(nodeMap).sort();
         for (var i = 0; i < allPaths.length; i++) {
             var node = nodeMap[allPaths[i]];
-            if (node.level > 0) {
-                var parentParts = allPaths[i].split('/');
-                parentParts.pop();
-                var parentPath = parentParts.join('/');
-                if (nodeMap[parentPath] && node.level === hierDimCaptions.length - 1) {
-                    // Don't double-aggregate; parent sums will be built separately below
-                }
-            }
-        }
-
-        // Rebuild parent measures as sum of their immediate children at deepest query level
-        // (simpler: just sum all leaf descendants)
-        for (var i = 0; i < allPaths.length; i++) {
-            var node = nodeMap[allPaths[i]];
             if (node.level < hierDimCaptions.length - 1) {
-                // Reset and sum from children
                 for (var m = 0; m < measureCaptions.length; m++) {
                     node.measures[measureCaptions[m]] = 0;
                 }
+                node.leafCount = 0;
                 var prefix = allPaths[i] + '/';
                 for (var j = 0; j < allPaths.length; j++) {
                     var child = nodeMap[allPaths[j]];
@@ -432,6 +442,7 @@
                         for (var m = 0; m < measureCaptions.length; m++) {
                             node.measures[measureCaptions[m]] += child.measures[measureCaptions[m]];
                         }
+                        node.leafCount += child.leafCount;
                     }
                 }
             }
@@ -482,6 +493,27 @@
             return children;
         }
 
+        // Check if all measures are 'none' — skip totals
+        var measureNames = self.valueFields.slice();
+        var allNone = measureNames.every(function(name) {
+            return self.getAggregation(name) === 'none';
+        });
+
+        function computeNodeAgg(node) {
+            var row = {};
+            for (var m = 0; m < measureCaptions.length; m++) {
+                var agg = self.getAggregation(measureNames[m]);
+                if (agg === 'none') {
+                    row[measureCaptions[m]] = '';
+                } else if (agg === 'avg') {
+                    row[measureCaptions[m]] = node.leafCount > 0 ? node.measures[measureCaptions[m]] / node.leafCount : 0;
+                } else {
+                    row[measureCaptions[m]] = node.measures[measureCaptions[m]];
+                }
+            }
+            return row;
+        }
+
         function emitNode(path) {
             var node = nodeMap[path];
             var expanded = isNodeExpanded(path, node.level);
@@ -504,25 +536,23 @@
                 hasChildren: hasChildren
             });
 
-            // If expanded, emit children recursively, then subtotal
             if (expanded && hasChildren) {
                 var children = getDirectChildren(path, node.level);
                 for (var c = 0; c < children.length; c++) {
                     emitNode(children[c]);
                 }
-                // Subtotal row after the group
-                var totalRow = {};
-                totalRow[treeColName] = makeIndent(node.level + 1) + 'Total ' + node.displayValue;
-                for (var m = 0; m < measureCaptions.length; m++) {
-                    totalRow[measureCaptions[m]] = node.measures[measureCaptions[m]];
+                // Subtotal row (respects aggregation type and showSubtotals toggle)
+                if (!allNone && self.showSubtotals) {
+                    var totalRow = computeNodeAgg(node);
+                    totalRow[treeColName] = makeIndent(node.level + 1) + 'Total ' + node.displayValue;
+                    visibleRows.push(totalRow);
+                    drillInfo.push({
+                        hierName: hierName,
+                        nodePath: path,
+                        level: node.level,
+                        isTotal: true
+                    });
                 }
-                visibleRows.push(totalRow);
-                drillInfo.push({
-                    hierName: hierName,
-                    nodePath: path,
-                    level: node.level,
-                    isTotal: true
-                });
             }
         }
 
@@ -536,22 +566,26 @@
         }
 
         // Gran Total row
-        var grandRow = {};
-        grandRow[treeColName] = 'Gran Total';
-        for (var m = 0; m < measureCaptions.length; m++) {
-            var sum = 0;
+        if (!allNone && self.showGrandTotal) {
+            var grandNode = { measures: {}, leafCount: 0 };
+            for (var m = 0; m < measureCaptions.length; m++) { grandNode.measures[measureCaptions[m]] = 0; }
             for (var i = 0; i < topLevelPaths.length; i++) {
-                sum += nodeMap[topLevelPaths[i]].measures[measureCaptions[m]];
+                var tn = nodeMap[topLevelPaths[i]];
+                for (var m = 0; m < measureCaptions.length; m++) {
+                    grandNode.measures[measureCaptions[m]] += tn.measures[measureCaptions[m]];
+                }
+                grandNode.leafCount += tn.leafCount;
             }
-            grandRow[measureCaptions[m]] = sum;
+            var grandRow = computeNodeAgg(grandNode);
+            grandRow[treeColName] = 'Gran Total';
+            visibleRows.push(grandRow);
+            drillInfo.push({
+                hierName: hierName,
+                nodePath: '',
+                level: -1,
+                isGrandTotal: true
+            });
         }
-        visibleRows.push(grandRow);
-        drillInfo.push({
-            hierName: hierName,
-            nodePath: '',
-            level: -1,
-            isGrandTotal: true
-        });
 
         return {
             columns: columns,
@@ -565,17 +599,29 @@
      * Add subtotals and Grand Total to flat (non-hierarchical) data.
      * Groups by the first row dimension, inserts subtotal after each group,
      * and appends a Grand Total at the end.
+     * Respects per-measure aggregation type (sum/avg/none).
      * Returns { rows, drillInfo }.
      */
     PivotConfig.prototype.addTotalsToFlatData = function(metadata, flatData, columns) {
         if (!flatData || flatData.length === 0) return { rows: flatData, drillInfo: [] };
 
         var self = this;
+        var measureNames = this.valueFields.slice();
         var measureCaptions = [];
-        this.valueFields.forEach(function(name) {
+        measureNames.forEach(function(name) {
             var m = metadata.measures.find(function(x) { return x.name === name; });
             measureCaptions.push(m ? m.caption : name);
         });
+
+        // Check if all measures are 'none' — if so, skip totals entirely
+        var allNone = measureNames.every(function(name) {
+            return self.getAggregation(name) === 'none';
+        });
+        if (allNone) {
+            var drillInfo = [];
+            for (var i = 0; i < flatData.length; i++) drillInfo.push(null);
+            return { rows: flatData.slice(), drillInfo: drillInfo };
+        }
 
         // Resolve dimension captions for row fields
         var dimCaptions = [];
@@ -584,60 +630,67 @@
             dimCaptions.push(dim ? dim.caption : name);
         });
 
+        function computeAggRow(sums, counts) {
+            var row = {};
+            for (var m = 0; m < measureCaptions.length; m++) {
+                var agg = self.getAggregation(measureNames[m]);
+                if (agg === 'none') {
+                    row[measureCaptions[m]] = '';
+                } else if (agg === 'avg') {
+                    row[measureCaptions[m]] = counts[m] > 0 ? sums[m] / counts[m] : 0;
+                } else {
+                    row[measureCaptions[m]] = sums[m];
+                }
+            }
+            return row;
+        }
+
         var rows = [];
         var drillInfo = [];
 
-        // Only add subtotals if there are 2+ row dimensions
-        if (dimCaptions.length >= 2) {
+        // Only add subtotals if there are 2+ row dimensions and showSubtotals is enabled
+        if (dimCaptions.length >= 2 && self.showSubtotals) {
             var groupCol = dimCaptions[0];
             var currentGroup = null;
-            var groupMeasures = {};
+            var groupSums = [];
+            var groupCounts = [];
 
             for (var r = 0; r < flatData.length; r++) {
                 var groupVal = flatData[r][groupCol];
 
-                // Detect group change
                 if (groupVal !== currentGroup && currentGroup !== null) {
-                    // Emit subtotal for previous group
-                    var subRow = {};
+                    var subRow = computeAggRow(groupSums, groupCounts);
                     subRow[groupCol] = 'Total ' + currentGroup;
-                    for (var m = 0; m < measureCaptions.length; m++) {
-                        subRow[measureCaptions[m]] = groupMeasures[measureCaptions[m]];
-                    }
                     rows.push(subRow);
                     drillInfo.push({ isTotal: true });
-                    groupMeasures = {};
                 }
 
                 if (groupVal !== currentGroup) {
                     currentGroup = groupVal;
+                    groupSums = [];
+                    groupCounts = [];
                     for (var m = 0; m < measureCaptions.length; m++) {
-                        groupMeasures[measureCaptions[m]] = 0;
+                        groupSums.push(0);
+                        groupCounts.push(0);
                     }
                 }
 
-                // Accumulate measures
                 for (var m = 0; m < measureCaptions.length; m++) {
                     var v = parseFloat(flatData[r][measureCaptions[m]]);
-                    if (!isNaN(v)) groupMeasures[measureCaptions[m]] += v;
+                    if (!isNaN(v)) { groupSums[m] += v; groupCounts[m]++; }
                 }
 
                 rows.push(flatData[r]);
                 drillInfo.push(null);
             }
 
-            // Last group subtotal
             if (currentGroup !== null) {
-                var subRow = {};
+                var subRow = computeAggRow(groupSums, groupCounts);
                 subRow[groupCol] = 'Total ' + currentGroup;
-                for (var m = 0; m < measureCaptions.length; m++) {
-                    subRow[measureCaptions[m]] = groupMeasures[measureCaptions[m]];
-                }
                 rows.push(subRow);
                 drillInfo.push({ isTotal: true });
             }
         } else {
-            // Single dimension: no subtotals, just copy data
             for (var r = 0; r < flatData.length; r++) {
                 rows.push(flatData[r]);
                 drillInfo.push(null);
@@ -645,20 +698,26 @@
         }
 
         // Gran Total
-        var grandRow = {};
-        if (columns && columns.length > 0) {
-            grandRow[columns[0]] = 'Gran Total';
-        }
-        for (var m = 0; m < measureCaptions.length; m++) {
-            var sum = 0;
-            for (var r = 0; r < flatData.length; r++) {
-                var v = parseFloat(flatData[r][measureCaptions[m]]);
-                if (!isNaN(v)) sum += v;
+        if (self.showGrandTotal) {
+            var grandSums = [];
+            var grandCounts = [];
+            for (var m = 0; m < measureCaptions.length; m++) {
+                grandSums.push(0);
+                grandCounts.push(0);
             }
-            grandRow[measureCaptions[m]] = sum;
+            for (var r = 0; r < flatData.length; r++) {
+                for (var m = 0; m < measureCaptions.length; m++) {
+                    var v = parseFloat(flatData[r][measureCaptions[m]]);
+                    if (!isNaN(v)) { grandSums[m] += v; grandCounts[m]++; }
+                }
+            }
+            var grandRow = computeAggRow(grandSums, grandCounts);
+            if (columns && columns.length > 0) {
+                grandRow[columns[0]] = 'Gran Total';
+            }
+            rows.push(grandRow);
+            drillInfo.push({ isGrandTotal: true });
         }
-        rows.push(grandRow);
-        drillInfo.push({ isGrandTotal: true });
 
         return { rows: rows, drillInfo: drillInfo };
     };
@@ -766,7 +825,79 @@
             dataRows.push(outRow);
         });
 
-        // --- Build columnFormats (aligned with headerRow0) ---
+        // --- Column totals (a "Total" column at the end of each row) ---
+        var addColTotal = self.showGrandTotal && valCaptions.length > 0;
+        if (addColTotal) {
+            // Header: add one "Total" column per measure (or just "Total" if single measure)
+            if (needsTwoHeaders) {
+                headerRow0.push('Total');
+                for (var v = 1; v < numValues; v++) headerRow0.push('');
+                valCaptions.forEach(function(vc) { headerRow1.push(vc); });
+            } else {
+                headerRow0.push('Total');
+            }
+
+            // Data rows: append total for each measure across all colCombos
+            for (var dr = 0; dr < dataRows.length; dr++) {
+                for (var vi = 0; vi < numValues; vi++) {
+                    var agg = self.getAggregation(self.valueFields[vi]);
+                    if (agg === 'none') {
+                        dataRows[dr].push('');
+                    } else {
+                        var sum = 0, cnt = 0;
+                        for (var ci = 0; ci < colCombos.length; ci++) {
+                            var cellIdx = rowCaptions.length + ci * numValues + vi;
+                            var val = parseFloat(dataRows[dr][cellIdx]);
+                            if (!isNaN(val)) { sum += val; cnt++; }
+                        }
+                        dataRows[dr].push(agg === 'avg' && cnt > 0 ? sum / cnt : sum);
+                    }
+                }
+            }
+        }
+
+        // --- Row grand total (a "Gran Total" row at the bottom) ---
+        var addRowTotal = self.showGrandTotal && valCaptions.length > 0;
+        if (addRowTotal) {
+            var grandRow = rowCaptions.map(function(_, idx) { return idx === 0 ? 'Gran Total' : ''; });
+            var totalCellCount = (colCombos.length + (addColTotal ? 1 : 0)) * numValues;
+            for (var ci = 0; ci < colCombos.length; ci++) {
+                for (var vi = 0; vi < numValues; vi++) {
+                    var agg = self.getAggregation(self.valueFields[vi]);
+                    if (agg === 'none') {
+                        grandRow.push('');
+                    } else {
+                        var sum = 0, cnt = 0;
+                        for (var dr = 0; dr < dataRows.length; dr++) {
+                            var cellIdx = rowCaptions.length + ci * numValues + vi;
+                            var val = parseFloat(dataRows[dr][cellIdx]);
+                            if (!isNaN(val)) { sum += val; cnt++; }
+                        }
+                        grandRow.push(agg === 'avg' && cnt > 0 ? sum / cnt : sum);
+                    }
+                }
+            }
+            // Grand total of the Total column
+            if (addColTotal) {
+                for (var vi = 0; vi < numValues; vi++) {
+                    var agg = self.getAggregation(self.valueFields[vi]);
+                    if (agg === 'none') {
+                        grandRow.push('');
+                    } else {
+                        var sum = 0, cnt = 0;
+                        var colTotalBase = rowCaptions.length + colCombos.length * numValues;
+                        for (var dr = 0; dr < dataRows.length; dr++) {
+                            var val = parseFloat(dataRows[dr][colTotalBase + vi]);
+                            if (!isNaN(val)) { sum += val; cnt++; }
+                        }
+                        grandRow.push(agg === 'avg' && cnt > 0 ? sum / cnt : sum);
+                    }
+                }
+            }
+            dataRows.push(grandRow);
+        }
+
+        // --- Build columnFormats (aligned with final headerRow0) ---
         var columnFormats = [];
         // Row-dim columns have no numeric format
         rowCaptions.forEach(function() { columnFormats.push(null); });
@@ -782,12 +913,35 @@
                 }
             });
         });
+        // Total column formats
+        if (addColTotal) {
+            self.valueFields.forEach(function(name) {
+                var meas = metadata.measures.find(function(m) { return m.name === name; });
+                if (meas && meas.unit) {
+                    var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(meas.unit) : meas.unit;
+                    columnFormats.push({ unit: meas.unit, decimals: meas.decimals != null ? meas.decimals : 2, symbol: sym });
+                } else {
+                    columnFormats.push(null);
+                }
+            });
+        }
+
+        // --- drillInfo for cross-tab (null for data rows, isGrandTotal for last row) ---
+        var crossDrillInfo = [];
+        for (var i = 0; i < dataRows.length; i++) {
+            if (addRowTotal && i === dataRows.length - 1) {
+                crossDrillInfo.push({ isGrandTotal: true });
+            } else {
+                crossDrillInfo.push(null);
+            }
+        }
 
         return {
             headerRows: headerRows,
             dataRows: dataRows,
             totalCols: headerRow0.length,
-            columnFormats: columnFormats
+            columnFormats: columnFormats,
+            drillInfo: crossDrillInfo
         };
     };
 
@@ -800,6 +954,9 @@
             filterFields:   this.filterFields.slice(),
             valueFields:    this.valueFields.slice(),
             filters:        JSON.parse(JSON.stringify(this.filters)),
+            aggregations:   JSON.parse(JSON.stringify(this.aggregations)),
+            showSubtotals:  this.showSubtotals,
+            showGrandTotal: this.showGrandTotal,
             sortField:      this.sortField,
             hierarchyState: JSON.parse(JSON.stringify(this.hierarchyState))
         };

@@ -9,7 +9,7 @@
 (function(window, undefined) {
     'use strict';
 
-    var VERSION = '2.6.0';
+    var VERSION = '2.8.0';
     var PLUGIN_NAME = 'DataAnalyzer';
 
     var dsManager        = null;

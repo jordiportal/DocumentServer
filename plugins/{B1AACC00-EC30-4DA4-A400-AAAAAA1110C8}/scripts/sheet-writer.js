@@ -231,6 +231,7 @@
         window.Asc.scope.ctTotalCols = crossTab.totalCols;
         window.Asc.scope.fmtJSON = fmtArray.length > 0 ? JSON.stringify(fmtArray) : '';
         window.Asc.scope.pivotConfigJSON = options.pivotConfig ? JSON.stringify(options.pivotConfig) : '';
+        window.Asc.scope.ctDrillInfo = crossTab.drillInfo || null;
 
         window.Asc.plugin.callCommand(function() {
             var oSheet = Api.GetActiveSheet();
@@ -276,6 +277,9 @@
             var headerFont = Api.CreateColorFromRGB(255, 255, 255);
             var subHeaderBg = Api.CreateColorFromRGB(55, 90, 130);
             var altRowBg = Api.CreateColorFromRGB(245, 248, 252);
+            var grandTotalBg = Api.CreateColorFromRGB(189, 195, 199);
+
+            var drillInfo = Asc.scope.ctDrillInfo || null;
 
             var colWidths = [];
             for (var c = 0; c < totalCols; c++) colWidths[c] = 4;
@@ -302,6 +306,8 @@
             // Write data rows
             for (var r = 0; r < dataRows.length; r++) {
                 var row = dataRows[r];
+                var rowInfo = drillInfo && drillInfo[r] ? drillInfo[r] : null;
+                var isGrand = rowInfo && rowInfo.isGrandTotal;
                 for (var c = 0; c < row.length; c++) {
                     var cell = oSheet.GetRangeByNumber(numHeaderRows + r, c);
                     var value = row[c];
@@ -315,7 +321,12 @@
                         cell.SetValue(display);
                         if (display.length > colWidths[c]) colWidths[c] = display.length;
                     }
-                    if (r % 2 === 1) cell.SetFillColor(altRowBg);
+                    if (isGrand) {
+                        cell.SetBold(true);
+                        cell.SetFillColor(grandTotalBg);
+                    } else if (r % 2 === 1) {
+                        cell.SetFillColor(altRowBg);
+                    }
                 }
             }
 
