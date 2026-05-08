@@ -34,7 +34,9 @@
                 { name: 'ZPAIS', caption: 'País' },
                 { name: 'ZREGION', caption: 'Región' },
                 { name: 'ZCIUDAD', caption: 'Ciudad' },
-                { name: '0CALMONTH', caption: 'Mes' }
+                { name: '0CALYEAR', caption: 'Año' },
+                { name: '0CALMONTH', caption: 'Mes' },
+                { name: '0CALWEEK', caption: 'Semana' }
             ],
             measures: [
                 { name: 'ZVNETAEST', caption: 'Venta Neta', dataType: 'N', unit: 'EUR', decimals: 2 },
@@ -51,7 +53,52 @@
                         { name: 'ZPAIS', caption: 'País', dimensionRef: 'ZPAIS' },
                         { name: 'ZCIUDAD', caption: 'Ciudad', dimensionRef: 'ZCIUDAD' }
                     ]
+                },
+                {
+                    name: 'HTIME',
+                    caption: 'Tiempo',
+                    levels: [
+                        { name: '0CALYEAR', caption: 'Año', dimensionRef: '0CALYEAR' },
+                        { name: '0CALMONTH', caption: 'Mes', dimensionRef: '0CALMONTH' },
+                        { name: '0CALWEEK', caption: 'Semana', dimensionRef: '0CALWEEK' }
+                    ]
                 }
+            ],
+            dimensionGroups: [
+                {
+                    name: 'TIME',
+                    caption: 'Tiempo',
+                    icon: 'calendar',
+                    fields: [
+                        { name: '0CALYEAR', caption: 'Año', type: 'level' },
+                        { name: '0CALMONTH', caption: 'Mes', type: 'level' },
+                        { name: '0CALWEEK', caption: 'Semana', type: 'level' }
+                    ],
+                    hierarchy: { name: 'HTIME', caption: 'Tiempo', levels: ['0CALYEAR', '0CALMONTH', '0CALWEEK'] }
+                },
+                {
+                    name: 'GEO',
+                    caption: 'Geografía',
+                    icon: 'globe',
+                    fields: [
+                        { name: 'ZREGION', caption: 'Región', type: 'level' },
+                        { name: 'ZPAIS', caption: 'País', type: 'level' },
+                        { name: 'ZCIUDAD', caption: 'Ciudad', type: 'level' }
+                    ],
+                    hierarchy: { name: 'HGEO', caption: 'Geografía', levels: ['ZREGION', 'ZPAIS', 'ZCIUDAD'] }
+                },
+                {
+                    name: 'MARKET',
+                    caption: 'Mercado',
+                    icon: 'tag',
+                    fields: [
+                        { name: 'ZSEGMEN', caption: 'Segmento', type: 'attribute' }
+                    ]
+                }
+            ],
+            initialFilters: [
+                { dimension: '0CALYEAR', caption: 'Año', required: true },
+                { dimension: 'ZREGION', caption: 'Región', required: false }
             ]
         },
         'ventas/ventas_por_cliente': {
@@ -64,6 +111,10 @@
                 { name: 'ZVNETAEST', caption: 'Venta Neta', dataType: 'N', unit: 'EUR', decimals: 2 },
                 { name: 'ZDESCUENTO', caption: 'Descuento', dataType: 'N', unit: '%', decimals: 2 },
                 { name: 'ZMARGEN', caption: 'Margen', dataType: 'N', unit: 'EUR', decimals: 2 }
+            ],
+            initialFilters: [
+                { dimension: 'ZSEGMEN', caption: 'Segmento', required: true },
+                { dimension: '0CALMONTH', caption: 'Mes', required: false }
             ]
         },
         'produccion/produccion_mensual': {
@@ -77,6 +128,10 @@
                 { name: 'ZCOSTE', caption: 'Coste Total', dataType: 'N', unit: 'EUR', decimals: 2 },
                 { name: 'ZEFICIENCIA', caption: 'Eficiencia %', dataType: 'N', unit: '%', decimals: 2 },
                 { name: 'ZMERMA', caption: 'Merma %', dataType: 'N', unit: '%', decimals: 2 }
+            ],
+            initialFilters: [
+                { dimension: 'ZLINEA', caption: 'Línea Producción', required: true },
+                { dimension: 'ZMES', caption: 'Mes', required: false }
             ]
         }
     };
@@ -129,11 +184,24 @@
                 { code: 'SHA', caption: 'Shanghái' },
                 { code: 'BEI', caption: 'Pekín' }
             ],
+            '0CALYEAR': [
+                { code: '2024', caption: '2024' },
+                { code: '2025', caption: '2025' },
+                { code: '2026', caption: '2026' }
+            ],
             '0CALMONTH': [
                 { code: '202601', caption: 'Enero 2026' },
                 { code: '202602', caption: 'Febrero 2026' },
                 { code: '202603', caption: 'Marzo 2026' },
                 { code: '202604', caption: 'Abril 2026' }
+            ],
+            '0CALWEEK': [
+                { code: '202601', caption: 'Sem 01' },
+                { code: '202602', caption: 'Sem 02' },
+                { code: '202603', caption: 'Sem 03' },
+                { code: '202604', caption: 'Sem 04' },
+                { code: '202610', caption: 'Sem 10' },
+                { code: '202615', caption: 'Sem 15' }
             ]
         },
         'ventas/ventas_por_cliente': {

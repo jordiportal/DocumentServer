@@ -6,232 +6,511 @@
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <script type="text/javascript" src="../v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="../v1/plugins.css">
-    <script type="text/javascript" src="scripts/mock-data.js?v=12"></script>
-    <script type="text/javascript" src="scripts/datasource.js?v=12"></script>
-    <script type="text/javascript" src="scripts/mock-datasource.js?v=12"></script>
-    <script type="text/javascript" src="scripts/datasource-manager.js?v=12"></script>
-    <script type="text/javascript" src="scripts/pivot-config.js?v=12"></script>
-    <script type="text/javascript" src="scripts/unit-formatter.js?v=12"></script>
+    <script type="text/javascript" src="scripts/mock-data.js?v=15"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=15"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=15"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=15"></script>
+    <script type="text/javascript" src="scripts/pivot-config.js?v=15"></script>
+    <script type="text/javascript" src="scripts/unit-formatter.js?v=15"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 11px;
+            font-size: 12px;
             background: var(--background-normal, #fff);
             color: var(--text-normal, #333);
-            padding: 12px;
+            padding: 16px;
             overflow-y: auto;
+            display: flex; flex-direction: column;
+            min-height: 100%;
         }
-        .form-group { margin-bottom: 8px; }
-        .form-group label { display: block; margin-bottom: 3px; font-size: 10px; font-weight: 500; }
-        .form-group select { width: 100%; padding: 6px 8px; font-size: 11px; border: 1px solid #d9d9d9; border-radius: 3px; }
-        .queries-list {
+
+        /* Stepper */
+        .stepper {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; margin-bottom: 16px; padding: 8px 0;
+        }
+        .step-dot {
+            width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 600;
+            background: #e0e0e0; color: #999;
+            transition: all 0.2s;
+        }
+        .step-dot.active { background: #446893; color: #fff; }
+        .step-dot.done { background: #4caf50; color: #fff; }
+        .step-line {
+            width: 32px; height: 2px; background: #e0e0e0;
+            transition: background 0.2s;
+        }
+        .step-line.done { background: #4caf50; }
+
+        /* Steps content */
+        .step-panel { display: none; flex: 1; overflow-y: auto; }
+        .step-panel.active { display: block; }
+        .step-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+        .step-subtitle { font-size: 10px; color: #888; margin-bottom: 12px; }
+
+        /* Cards */
+        .card-list { display: flex; flex-direction: column; gap: 6px; }
+        .card {
+            border: 1px solid #d9d9d9; border-radius: 6px;
+            padding: 10px 12px; cursor: pointer;
+            transition: all 0.15s;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .card:hover { border-color: #446893; background: rgba(68,104,147,0.04); }
+        .card.selected { border-color: #446893; background: rgba(68,104,147,0.1); box-shadow: 0 0 0 2px rgba(68,104,147,0.2); }
+        .card-icon {
+            width: 36px; height: 36px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; background: #f0f4f8;
+        }
+        .card-body { flex: 1; }
+        .card-title { font-weight: 600; font-size: 12px; }
+        .card-desc { font-size: 10px; color: #666; margin-top: 2px; }
+        .card-badge {
+            font-size: 9px; padding: 2px 6px;
+            border-radius: 10px; background: #e8f5e9; color: #2e7d32;
+        }
+        .card-badge.warn { background: #fff3e0; color: #e65100; }
+
+        /* Filter section */
+        .filter-group { margin-bottom: 12px; }
+        .filter-label {
+            font-size: 11px; font-weight: 600; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .filter-label .req { color: #d32f2f; font-size: 13px; }
+        .filter-checks {
             border: 1px solid #d9d9d9; border-radius: 4px;
-            max-height: 90px; overflow-y: auto;
-            background: var(--background-toolbar, #f5f5f5);
+            padding: 6px 8px; max-height: 100px; overflow-y: auto;
+            background: var(--background-toolbar, #f9f9f9);
         }
-        .query-item {
-            padding: 6px 8px; border-bottom: 1px solid #d9d9d9;
-            cursor: pointer; transition: background 0.15s;
+        .filter-checks label {
+            display: flex; align-items: center; gap: 5px;
+            padding: 3px 0; font-size: 11px; cursor: pointer;
         }
-        .query-item:hover { background: rgba(68,104,147,0.1); }
-        .query-item.selected { background: rgba(68,104,147,0.2); border-left: 3px solid #446893; }
-        .query-item:last-child { border-bottom: none; }
-        .query-name { font-weight: 600; font-size: 11px; }
-        .query-desc { font-size: 9px; opacity: 0.7; }
-        .data-preview {
-            border: 1px solid #d9d9d9; border-radius: 4px;
-            max-height: 100px; overflow: auto; margin-bottom: 8px;
+        .filter-checks input[type="checkbox"] { margin: 0; }
+        .filter-actions { display: flex; gap: 8px; margin-top: 4px; }
+        .filter-actions a {
+            font-size: 9px; color: #446893; cursor: pointer; text-decoration: underline;
         }
-        .preview-table { width: 100%; border-collapse: collapse; font-size: 9px; }
-        .preview-table th, .preview-table td {
-            padding: 4px 6px; border: 1px solid #d9d9d9; text-align: left; white-space: nowrap;
+        .filter-error { color: #d32f2f; font-size: 10px; margin-top: 3px; display: none; }
+
+        /* Footer buttons */
+        .wizard-footer {
+            display: flex; justify-content: space-between;
+            margin-top: 16px; padding-top: 12px;
+            border-top: 1px solid #eee;
         }
-        .preview-table th { background: #eee; font-weight: 600; }
-        .stats { font-size: 10px; margin-bottom: 6px; text-align: center; color: #666; }
-        .status-bar {
-            border: 1px solid #d9d9d9; border-radius: 4px; padding: 6px 8px;
-            margin-bottom: 8px; display: flex; align-items: center; gap: 6px; font-size: 10px;
-        }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ff9800; }
-        .dot.ok { background: #4caf50; }
-        .dot.err { background: #f44336; }
         .btn {
-            width: 100%; padding: 7px 12px; margin-bottom: 5px;
-            border: 1px solid #d9d9d9; border-radius: 3px;
-            font-size: 11px; cursor: pointer; display: flex;
-            align-items: center; justify-content: center; gap: 5px;
+            padding: 8px 16px; border: 1px solid #d9d9d9; border-radius: 4px;
+            font-size: 11px; cursor: pointer; transition: all 0.15s;
         }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-primary { background: #446893; border-color: #446893; color: #fff; }
         .btn-primary:hover:not(:disabled) { background: #365a80; }
-        .footer { margin-top: 6px; text-align: center; font-size: 9px; color: #999; }
+        .btn-back { background: transparent; }
+        .btn-back:hover:not(:disabled) { background: #f5f5f5; }
+
+        .status-msg {
+            text-align: center; font-size: 10px; color: #888;
+            padding: 20px 0;
+        }
     </style>
 </head>
 <body>
-    <div class="status-bar">
-        <div class="dot" id="dot"></div>
-        <span id="statusText">Conectando...</span>
+    <!-- Stepper -->
+    <div class="stepper">
+        <div class="step-dot active" data-step="0">1</div>
+        <div class="step-line" data-line="0"></div>
+        <div class="step-dot" data-step="1">2</div>
+        <div class="step-line" data-line="1"></div>
+        <div class="step-dot" data-step="2">3</div>
+        <div class="step-line" data-line="2"></div>
+        <div class="step-dot" data-step="3">4</div>
     </div>
 
-    <div class="form-group">
-        <label>Consultas disponibles:</label>
-        <div class="queries-list" id="queriesList">
-            <div style="padding:8px;text-align:center;color:#999">Cargando...</div>
+    <!-- Step 1: Proxy -->
+    <div class="step-panel active" id="step0">
+        <div class="step-title">Seleccionar conexión</div>
+        <div class="step-subtitle">Elige el sistema de datos al que conectarte</div>
+        <div class="card-list" id="proxyList">
+            <div class="status-msg">Cargando conexiones...</div>
         </div>
     </div>
 
-    <div id="errorContainer"></div>
-    <div class="stats" id="statsContainer"></div>
-
-    <div class="data-preview" id="dataPreview">
-        <div style="padding:8px;text-align:center;color:#999">Selecciona una query</div>
+    <!-- Step 2: Catalog -->
+    <div class="step-panel" id="step1">
+        <div class="step-title">Seleccionar catálogo</div>
+        <div class="step-subtitle">Elige un grupo de informes</div>
+        <div class="card-list" id="catalogList"></div>
     </div>
 
-    <button class="btn" id="btnExecute" disabled>▶ Ejecutar Query</button>
-    <button class="btn btn-primary" id="btnInsert" disabled>⬇ Insertar en Hoja</button>
+    <!-- Step 3: Report -->
+    <div class="step-panel" id="step2">
+        <div class="step-title">Seleccionar informe</div>
+        <div class="step-subtitle">Elige el informe a importar</div>
+        <div class="card-list" id="reportList"></div>
+    </div>
 
-    <div class="footer">Data Analyzer v2.2.0</div>
+    <!-- Step 4: Filters -->
+    <div class="step-panel" id="step3">
+        <div class="step-title">Filtros iniciales</div>
+        <div class="step-subtitle">Selecciona valores para filtrar los datos antes de importar</div>
+        <div id="filtersContainer"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="wizard-footer">
+        <button class="btn btn-back" id="btnBack" disabled>← Anterior</button>
+        <button class="btn btn-primary" id="btnNext" disabled>Siguiente →</button>
+    </div>
 
     <script>
         (function() {
             'use strict';
 
+            var PROXY_ICONS = { biw: '🏢', databricks: '⚡', mock: '🧪' };
+            var PROXY_LABELS = { biw: 'SAP BW', databricks: 'Databricks', mock: 'Mock' };
+
             var dsManager = new DataSourceManager();
-            if (dsManager.list().length === 0) dsManager.register(new MockDataSource());
+            dsManager.registerDefaults();
 
-            var dot = document.getElementById('dot');
-            var statusText = document.getElementById('statusText');
-            var queriesList = document.getElementById('queriesList');
-            var btnExecute = document.getElementById('btnExecute');
-            var btnInsert = document.getElementById('btnInsert');
-            var dataPreview = document.getElementById('dataPreview');
-            var statsContainer = document.getElementById('statsContainer');
+            var currentStep = 0;
+            var totalSteps = 4;
 
-            var selectedQuery = null;
-            var currentData = null;
-            var currentColumns = null;
+            var selectedProxy = null;
+            var selectedCatalog = null;
+            var selectedReport = null;
+            var reportMetadata = null;
+            var filterValues = {};
 
-            async function init() {
-                var ds = dsManager.getActive();
-                if (!ds) return;
-                try {
-                    var info = await ds.getInfo();
-                    dot.className = 'dot ok';
-                    statusText.textContent = 'Conectado - ' + info.name;
+            var btnNext = document.getElementById('btnNext');
+            var btnBack = document.getElementById('btnBack');
 
-                    var sources = await ds.listSources();
-                    queriesList.innerHTML = '';
-                    sources.forEach(function(s, idx) {
-                        var div = document.createElement('div');
-                        div.className = 'query-item';
-                        div.dataset.idx = idx;
-                        div.dataset.name = s.name;
-                        div.innerHTML = '<div class="query-name">' + s.description + '</div>'
-                                      + '<div class="query-desc">' + (s.catalog || '') + '</div>';
-                        div.addEventListener('click', function() {
-                            queriesList.querySelectorAll('.query-item').forEach(function(i) { i.classList.remove('selected'); });
-                            div.classList.add('selected');
-                            selectedQuery = s;
-                            btnExecute.disabled = false;
-                            btnInsert.disabled = true;
-                            currentData = null;
-                            dataPreview.innerHTML = '<div style="padding:8px;text-align:center;color:#999">Click en "Ejecutar Query"</div>';
-                            statsContainer.textContent = '';
-                        });
-                        queriesList.appendChild(div);
-                    });
-                } catch(e) {
-                    dot.className = 'dot err';
-                    statusText.textContent = 'Error: ' + e.message;
-                }
+            // ---- Stepper rendering ----
+            function renderStepper() {
+                var dots = document.querySelectorAll('.step-dot');
+                var lines = document.querySelectorAll('.step-line');
+                dots.forEach(function(d, i) {
+                    d.className = 'step-dot';
+                    if (i < currentStep) d.classList.add('done');
+                    else if (i === currentStep) d.classList.add('active');
+                });
+                lines.forEach(function(l, i) {
+                    l.className = 'step-line';
+                    if (i < currentStep) l.classList.add('done');
+                });
             }
 
-            var currentMetadata = null;
+            function showStep(idx) {
+                document.querySelectorAll('.step-panel').forEach(function(p, i) {
+                    p.classList.toggle('active', i === idx);
+                });
+                currentStep = idx;
+                renderStepper();
+                btnBack.disabled = (idx === 0);
+                updateNextButton();
+            }
 
-            async function executeQuery() {
-                if (!selectedQuery) return;
-                var ds = dsManager.getActive();
-                if (!ds) return;
+            function updateNextButton() {
+                var canProceed = false;
+                if (currentStep === 0) canProceed = !!selectedProxy;
+                else if (currentStep === 1) canProceed = !!selectedCatalog;
+                else if (currentStep === 2) canProceed = !!selectedReport;
+                else if (currentStep === 3) canProceed = validateFilters();
+                btnNext.disabled = !canProceed;
+                btnNext.textContent = (currentStep === 3) ? '⬇ Importar' : 'Siguiente →';
+            }
 
-                btnExecute.disabled = true;
-                btnExecute.textContent = 'Ejecutando...';
+            // ---- Step 1: Proxy list ----
+            function renderProxies() {
+                var list = document.getElementById('proxyList');
+                var proxies = dsManager.list();
+                if (proxies.length === 0) {
+                    list.innerHTML = '<div class="status-msg">No hay conexiones configuradas</div>';
+                    return;
+                }
+                list.innerHTML = '';
+                proxies.forEach(function(p) {
+                    var card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML =
+                        '<div class="card-icon">' + (PROXY_ICONS[p.type] || '📊') + '</div>' +
+                        '<div class="card-body">' +
+                            '<div class="card-title">' + p.name + '</div>' +
+                            '<div class="card-desc">' + (PROXY_LABELS[p.type] || p.type) + '</div>' +
+                        '</div>' +
+                        '<div class="card-badge">Conectado</div>';
+                    card.addEventListener('click', function() {
+                        list.querySelectorAll('.card').forEach(function(c) { c.classList.remove('selected'); });
+                        card.classList.add('selected');
+                        selectedProxy = p.name;
+                        selectedCatalog = null;
+                        selectedReport = null;
+                        updateNextButton();
+                    });
+                    list.appendChild(card);
+                });
+            }
+
+            // ---- Step 2: Catalog list ----
+            async function renderCatalogs() {
+                var list = document.getElementById('catalogList');
+                list.innerHTML = '<div class="status-msg">Cargando catálogos...</div>';
+
+                var ds = dsManager.get(selectedProxy);
+                if (!ds) { dsManager.setActive(selectedProxy); ds = dsManager.getActive(); }
+                else { dsManager.setActive(selectedProxy); }
 
                 try {
-                    currentMetadata = await ds.getMetadata(selectedQuery.name);
-
-                    var result = await ds.executeQuery({
-                        source: selectedQuery.name,
-                        dimensions: undefined,
-                        measures: undefined
-                    });
-
-                    currentData = result.data;
-                    currentColumns = result.columns.map(function(c) { return c.caption; });
-
-                    var headers = currentColumns;
-                    var html = '<table class="preview-table"><thead><tr>';
-                    headers.forEach(function(h) { html += '<th>' + h + '</th>'; });
-                    html += '</tr></thead><tbody>';
-                    result.data.slice(0, 4).forEach(function(row) {
-                        html += '<tr>';
-                        headers.forEach(function(h) {
-                            var val = row[h];
-                            if (typeof val === 'number') val = val.toLocaleString('es-ES');
-                            html += '<td>' + (val != null ? val : '-') + '</td>';
-                        });
-                        html += '</tr>';
-                    });
-                    if (result.data.length > 4) {
-                        html += '<tr><td colspan="' + headers.length + '" style="text-align:center;opacity:0.5">+' + (result.data.length - 4) + ' filas más</td></tr>';
+                    var catalogs = await ds.listCatalogs();
+                    list.innerHTML = '';
+                    if (catalogs.length === 0) {
+                        list.innerHTML = '<div class="status-msg">Sin catálogos disponibles</div>';
+                        return;
                     }
-                    html += '</tbody></table>';
-                    dataPreview.innerHTML = html;
-                    statsContainer.textContent = result.totalRows + ' filas × ' + headers.length + ' columnas';
-                    btnInsert.disabled = false;
+                    catalogs.forEach(function(cat) {
+                        var card = document.createElement('div');
+                        card.className = 'card';
+                        card.innerHTML =
+                            '<div class="card-icon">📁</div>' +
+                            '<div class="card-body">' +
+                                '<div class="card-title">' + cat.caption + '</div>' +
+                                '<div class="card-desc">' + cat.count + ' informe' + (cat.count > 1 ? 's' : '') + '</div>' +
+                            '</div>';
+                        card.addEventListener('click', function() {
+                            list.querySelectorAll('.card').forEach(function(c) { c.classList.remove('selected'); });
+                            card.classList.add('selected');
+                            selectedCatalog = cat.name;
+                            selectedReport = null;
+                            updateNextButton();
+                        });
+                        list.appendChild(card);
+                    });
                 } catch(e) {
-                    dataPreview.innerHTML = '<div style="padding:8px;color:red">' + e.message + '</div>';
+                    list.innerHTML = '<div class="status-msg" style="color:#d32f2f">Error: ' + e.message + '</div>';
                 }
-
-                btnExecute.disabled = false;
-                btnExecute.textContent = '▶ Ejecutar Query';
             }
 
-            function insertData() {
-                if (!currentData || currentData.length === 0) return;
+            // ---- Step 3: Report list ----
+            async function renderReports() {
+                var list = document.getElementById('reportList');
+                list.innerHTML = '<div class="status-msg">Cargando informes...</div>';
 
-                var pivotCfg = null;
-                var columnFormats = null;
-                if (selectedQuery && currentMetadata) {
-                    var cfg = PivotConfig.fromMetadata(
-                        selectedQuery.name,
-                        selectedQuery.description,
-                        currentMetadata
-                    );
-                    pivotCfg = cfg.toJSON();
-                    columnFormats = cfg.getColumnFormats(currentMetadata);
+                var ds = dsManager.getActive();
+                if (!ds) return;
+
+                try {
+                    var sources = await ds.listSources();
+                    var filtered = sources.filter(function(s) {
+                        return (s.catalog || 'General') === selectedCatalog;
+                    });
+                    list.innerHTML = '';
+                    if (filtered.length === 0) {
+                        list.innerHTML = '<div class="status-msg">Sin informes en este catálogo</div>';
+                        return;
+                    }
+                    filtered.forEach(function(s) {
+                        var card = document.createElement('div');
+                        card.className = 'card';
+                        var dateStr = s.lastUpdate ? formatDate(s.lastUpdate) : '';
+                        card.innerHTML =
+                            '<div class="card-icon">📄</div>' +
+                            '<div class="card-body">' +
+                                '<div class="card-title">' + s.description + '</div>' +
+                                '<div class="card-desc">' + s.name + (dateStr ? ' · ' + dateStr : '') + '</div>' +
+                            '</div>';
+                        card.addEventListener('click', function() {
+                            list.querySelectorAll('.card').forEach(function(c) { c.classList.remove('selected'); });
+                            card.classList.add('selected');
+                            selectedReport = s;
+                            updateNextButton();
+                        });
+                        list.appendChild(card);
+                    });
+                } catch(e) {
+                    list.innerHTML = '<div class="status-msg" style="color:#d32f2f">Error: ' + e.message + '</div>';
+                }
+            }
+
+            // ---- Step 4: Initial filters ----
+            async function renderFilters() {
+                var container = document.getElementById('filtersContainer');
+                container.innerHTML = '<div class="status-msg">Cargando filtros...</div>';
+
+                var ds = dsManager.getActive();
+                if (!ds || !selectedReport) return;
+
+                try {
+                    reportMetadata = await ds.getMetadata(selectedReport.name);
+                    var initFilters = reportMetadata.initialFilters || [];
+
+                    if (initFilters.length === 0) {
+                        container.innerHTML = '<div class="status-msg">Este informe no requiere filtros previos</div>';
+                        filterValues = {};
+                        updateNextButton();
+                        return;
+                    }
+
+                    container.innerHTML = '';
+                    filterValues = {};
+
+                    for (var i = 0; i < initFilters.length; i++) {
+                        var fDef = initFilters[i];
+                        var values = await ds.getDimensionValues(selectedReport.name, fDef.dimension);
+                        filterValues[fDef.dimension] = { def: fDef, values: values, selected: [] };
+                        renderFilterGroup(container, fDef, values);
+                    }
+                    updateNextButton();
+                } catch(e) {
+                    container.innerHTML = '<div class="status-msg" style="color:#d32f2f">Error: ' + e.message + '</div>';
+                }
+            }
+
+            function renderFilterGroup(container, fDef, values) {
+                var group = document.createElement('div');
+                group.className = 'filter-group';
+                group.dataset.dim = fDef.dimension;
+
+                var label = document.createElement('div');
+                label.className = 'filter-label';
+                label.innerHTML = fDef.caption + (fDef.required ? ' <span class="req">*</span>' : '');
+                group.appendChild(label);
+
+                var checks = document.createElement('div');
+                checks.className = 'filter-checks';
+
+                values.forEach(function(v) {
+                    var lbl = document.createElement('label');
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = v.code;
+                    cb.addEventListener('change', function() {
+                        syncFilterSelection(fDef.dimension, checks);
+                    });
+                    lbl.appendChild(cb);
+                    lbl.appendChild(document.createTextNode(v.caption));
+                    checks.appendChild(lbl);
+                });
+                group.appendChild(checks);
+
+                var actions = document.createElement('div');
+                actions.className = 'filter-actions';
+                var selAll = document.createElement('a');
+                selAll.textContent = 'Todos';
+                selAll.addEventListener('click', function() {
+                    checks.querySelectorAll('input').forEach(function(cb) { cb.checked = true; });
+                    syncFilterSelection(fDef.dimension, checks);
+                });
+                var selNone = document.createElement('a');
+                selNone.textContent = 'Ninguno';
+                selNone.addEventListener('click', function() {
+                    checks.querySelectorAll('input').forEach(function(cb) { cb.checked = false; });
+                    syncFilterSelection(fDef.dimension, checks);
+                });
+                actions.appendChild(selAll);
+                actions.appendChild(selNone);
+                group.appendChild(actions);
+
+                if (fDef.required) {
+                    var err = document.createElement('div');
+                    err.className = 'filter-error';
+                    err.textContent = 'Selecciona al menos un valor';
+                    group.appendChild(err);
+                }
+
+                container.appendChild(group);
+            }
+
+            function syncFilterSelection(dimName, checksEl) {
+                var checked = checksEl.querySelectorAll('input:checked');
+                var vals = Array.from(checked).map(function(cb) { return cb.value; });
+                filterValues[dimName].selected = vals;
+
+                var group = checksEl.closest('.filter-group');
+                var err = group.querySelector('.filter-error');
+                if (err) {
+                    err.style.display = (filterValues[dimName].def.required && vals.length === 0) ? 'block' : 'none';
+                }
+                updateNextButton();
+            }
+
+            function validateFilters() {
+                if (!reportMetadata || !reportMetadata.initialFilters) return true;
+                for (var dim in filterValues) {
+                    if (filterValues[dim].def.required && filterValues[dim].selected.length === 0) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // ---- Import ----
+            function doImport() {
+                if (!selectedReport || !reportMetadata) return;
+
+                var filters = [];
+                for (var dim in filterValues) {
+                    if (filterValues[dim].selected.length > 0) {
+                        filters.push({ dimension: dim, values: filterValues[dim].selected });
+                    }
+                }
+
+                var cfg = PivotConfig.fromMetadata(
+                    selectedReport.name,
+                    selectedReport.description,
+                    reportMetadata
+                );
+                if (filters.length > 0) {
+                    filters.forEach(function(f) {
+                        cfg.setFilters(f.dimension, f.values);
+                    });
                 }
 
                 if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
-                    window.Asc.plugin.sendToPlugin("onInsertData", {
-                        rows: currentData,
-                        columns: currentColumns,
-                        columnFormats: columnFormats,
-                        pivotConfig: pivotCfg
+                    window.Asc.plugin.sendToPlugin('onImportRequest', {
+                        source: selectedReport.name,
+                        description: selectedReport.description,
+                        metadata: reportMetadata,
+                        filters: filters,
+                        pivotConfig: cfg.toJSON()
                     });
                 }
             }
 
-            btnExecute.addEventListener('click', executeQuery);
-            btnInsert.addEventListener('click', insertData);
+            // ---- Navigation ----
+            btnNext.addEventListener('click', async function() {
+                if (currentStep === 3) {
+                    doImport();
+                    return;
+                }
+                var next = currentStep + 1;
+                if (next === 1) await renderCatalogs();
+                else if (next === 2) await renderReports();
+                else if (next === 3) await renderFilters();
+                showStep(next);
+            });
 
+            btnBack.addEventListener('click', function() {
+                if (currentStep > 0) showStep(currentStep - 1);
+            });
+
+            // ---- Utils ----
+            function formatDate(yyyymmdd) {
+                if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
+                return yyyymmdd.slice(6,8) + '/' + yyyymmdd.slice(4,6) + '/' + yyyymmdd.slice(0,4);
+            }
+
+            // ---- Plugin lifecycle ----
             window.Asc.plugin.init = function() {
-                init();
+                renderProxies();
             };
 
             window.Asc.plugin.button = function(id) {
-                if (id === 0 && currentData) insertData();
-                else if (id === 1 || id === -1) window.Asc.plugin.executeMethod("CloseWindow");
+                if (id === -1) window.Asc.plugin.executeMethod('CloseWindow');
             };
 
             window.Asc.plugin.onExternalMouseUp = function() {};

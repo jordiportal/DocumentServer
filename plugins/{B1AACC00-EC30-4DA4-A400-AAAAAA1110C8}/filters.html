@@ -6,12 +6,12 @@
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <script type="text/javascript" src="../v1/plugins-ui.js"></script>
     <link  rel="stylesheet" href="../v1/plugins.css">
-    <script type="text/javascript" src="scripts/mock-data.js?v=12"></script>
-    <script type="text/javascript" src="scripts/datasource.js?v=12"></script>
-    <script type="text/javascript" src="scripts/mock-datasource.js?v=12"></script>
-    <script type="text/javascript" src="scripts/datasource-manager.js?v=12"></script>
-    <script type="text/javascript" src="scripts/pivot-config.js?v=12"></script>
-    <script type="text/javascript" src="scripts/unit-formatter.js?v=12"></script>
+    <script type="text/javascript" src="scripts/mock-data.js?v=15"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=15"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=15"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=15"></script>
+    <script type="text/javascript" src="scripts/pivot-config.js?v=15"></script>
+    <script type="text/javascript" src="scripts/unit-formatter.js?v=15"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -97,6 +97,31 @@
         }
         .available-fields .chip { opacity: 0.7; border-style: dashed; }
         .available-fields .chip:hover { opacity: 1; }
+
+        /* Dimension group tree */
+        .dim-group {
+            margin-bottom: 2px;
+        }
+        .dim-group-header {
+            display: flex; align-items: center; gap: 4px;
+            padding: 4px 6px; cursor: pointer; user-select: none;
+            font-size: 10px; font-weight: 600; color: #555;
+            border-radius: 3px;
+        }
+        .dim-group-header:hover { background: #f0f4f8; }
+        .dim-group-header .group-icon {
+            font-size: 11px; width: 14px; text-align: center;
+        }
+        .dim-group-header .group-arrow {
+            font-size: 8px; transition: transform 0.15s; color: #999;
+        }
+        .dim-group-header.collapsed .group-arrow { transform: rotate(-90deg); }
+        .dim-group-body {
+            padding: 1px 4px 2px 22px; display: flex; flex-wrap: wrap; gap: 2px;
+        }
+        .dim-group-body.hidden { display: none; }
+        .dim-group-body .chip { opacity: 0.7; border-style: dashed; }
+        .dim-group-body .chip:hover { opacity: 1; }
 
         /* Chip context menu */
         .chip-menu {
@@ -186,9 +211,9 @@
 <body>
 <div class="panel">
 
-    <!-- Query selector -->
+    <!-- Report selector (reports on current sheet) -->
     <div class="query-bar">
-        <select id="querySelect"><option value="">-- Consulta --</option></select>
+        <select id="querySelect"><option value="">-- Informes en hoja --</option></select>
     </div>
 
     <!-- Available fields -->
@@ -276,7 +301,7 @@
 
     // ---- State ----
     var dsManager = new DataSourceManager();
-    if (dsManager.list().length === 0) dsManager.register(new MockDataSource());
+    dsManager.registerDefaults();
 
     var pivotConfig  = null;
     var metadata     = null;
@@ -303,73 +328,39 @@
     var chipMenu          = document.getElementById('chipMenu');
     var filterModal       = document.getElementById('filterModal');
 
-    // ---- Init ----
-    async function init() {
-        var ds = dsManager.getActive();
-        if (!ds) return;
-        try {
-            var sources = await ds.listSources();
-            sources.forEach(function(s) {
-                var opt = document.createElement('option');
-                opt.value = s.name;
-                opt.textContent = s.description;
-                querySelect.appendChild(opt);
-            });
-        } catch(e) {
-            statusText.textContent = 'Error: ' + e.message;
-        }
+    // ---- Sheet report list (populated from background) ----
+    var sheetReports = [];
+
+    function updateReportSelector(reports) {
+        sheetReports = reports || [];
+        querySelect.innerHTML = '<option value="">-- Informes en hoja --</option>';
+        sheetReports.forEach(function(r) {
+            var opt = document.createElement('option');
+            opt.value = r.id;
+            var cellLabel = colLetter(r.startCol) + (r.startRow + 1);
+            opt.textContent = (r.caption || r.source || r.id) + ' (' + cellLabel + ')';
+            querySelect.appendChild(opt);
+        });
     }
 
-    // ---- Query selection ----
-    async function onQueryChange() {
-        var name = querySelect.value;
-        if (!name) {
-            pivotConfig = null; metadata = null; allFields = [];
-            renderAllZones(); return;
-        }
+    function colLetter(idx) {
+        var s = '';
+        var n = idx;
+        while (n >= 0) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; }
+        return s;
+    }
 
-        var ds = dsManager.getActive();
-        if (!ds) return;
+    // ---- Init ----
+    function init() {
+        // Panel waits for background to send the report list and active config
+    }
 
-        try {
-            metadata = await ds.getMetadata(name);
-            allFields = [];
-
-            // Collect dimension names that are part of a hierarchy
-            var hierDimRefs = {};
-            if (metadata.hierarchies) {
-                metadata.hierarchies.forEach(function(h) {
-                    h.levels.forEach(function(lev) {
-                        hierDimRefs[lev.dimensionRef] = h.name;
-                    });
-                });
-            }
-
-            // Add standalone dimensions (not part of any hierarchy)
-            metadata.dimensions.forEach(function(d) {
-                if (!hierDimRefs[d.name]) {
-                    allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
-                }
-            });
-
-            // Add hierarchies as special fields
-            if (metadata.hierarchies) {
-                metadata.hierarchies.forEach(function(h) {
-                    allFields.push({ name: h.name, caption: h.caption, type: 'hierarchy', levels: h.levels });
-                });
-            }
-
-            metadata.measures.forEach(function(m) {
-                allFields.push({ name: m.name, caption: m.caption, type: 'measure', unit: m.unit, decimals: m.decimals });
-            });
-
-            pivotConfig = PivotConfig.fromMetadata(name, querySelect.selectedOptions[0].textContent, metadata);
-            dimValuesCache = {};
-            btnExecute.disabled = false;
-            renderAllZones();
-            notifyChange();
-        } catch(e) {
-            statusText.textContent = 'Error: ' + e.message;
+    // ---- Report selection from dropdown ----
+    function onQueryChange() {
+        var reportId = querySelect.value;
+        if (!reportId) return;
+        if (window.Asc && window.Asc.plugin && window.Asc.plugin.sendToPlugin) {
+            window.Asc.plugin.sendToPlugin('onReportSelect', reportId);
         }
     }
 
@@ -381,6 +372,8 @@
         renderZone('filterFields', filterFieldsZone, filterCount);
         renderZone('valueFields', valueFieldsZone, valueCount);
     }
+
+    var groupCollapseState = {}; // { groupName: true/false }
 
     function renderAvailable() {
         availableFields.innerHTML = '';
@@ -396,6 +389,15 @@
         availableFields.classList.toggle('empty-msg', available.length === 0);
         availCount.textContent = available.length;
 
+        // If dimensionGroups available, render as tree
+        if (metadata && metadata.dimensionGroups && metadata.dimensionGroups.length > 0) {
+            renderGroupedAvailable(available, assigned);
+        } else {
+            renderFlatAvailable(available);
+        }
+    }
+
+    function renderFlatAvailable(available) {
         available.forEach(function(f) {
             var chip = createChip(f, null);
             chip.addEventListener('click', function(e) {
@@ -410,6 +412,134 @@
             });
             availableFields.appendChild(chip);
         });
+    }
+
+    var GROUP_ICONS = {
+        calendar: '\uD83D\uDCC5',
+        globe: '\uD83C\uDF0D',
+        user: '\uD83D\uDC64',
+        tag: '\uD83C\uDFF7',
+        chart: '\uD83D\uDCCA',
+        default: '\uD83D\uDCC1'
+    };
+
+    function renderGroupedAvailable(available, assigned) {
+        var availSet = {};
+        available.forEach(function(f) { availSet[f.name] = f; });
+
+        metadata.dimensionGroups.forEach(function(group) {
+            var hierName = group.hierarchy ? group.hierarchy.name : null;
+            var hierIsAssigned = hierName && assigned.indexOf(hierName) !== -1;
+
+            // Check if any individual field of this group is already assigned
+            var anyFieldAssigned = group.fields.some(function(gf) {
+                return assigned.indexOf(gf.name) !== -1;
+            });
+
+            var groupFields = [];
+            var hierField = null;
+
+            // If hierarchy is assigned, individual fields are hidden (they're part of the hierarchy)
+            if (!hierIsAssigned) {
+                group.fields.forEach(function(gf) {
+                    var f = availSet[gf.name];
+                    if (f) groupFields.push(f);
+                });
+            }
+
+            // If any individual field is assigned, hide the hierarchy (can't mix)
+            if (!anyFieldAssigned && hierName && !hierIsAssigned) {
+                hierField = availSet[hierName];
+                if (!hierField) {
+                    var hf = allFields.find(function(f) { return f.name === hierName; });
+                    if (hf && assigned.indexOf(hf.name) === -1) hierField = hf;
+                }
+            }
+
+            if (groupFields.length === 0 && !hierField) return;
+
+            var groupEl = document.createElement('div');
+            groupEl.className = 'dim-group';
+
+            var isCollapsed = groupCollapseState[group.name] === true;
+
+            var header = document.createElement('div');
+            header.className = 'dim-group-header' + (isCollapsed ? ' collapsed' : '');
+            var icon = GROUP_ICONS[group.icon] || GROUP_ICONS['default'];
+            header.innerHTML = '<span class="group-arrow">\u25BC</span><span class="group-icon">' + icon + '</span><span>' + group.caption + '</span>';
+            header.addEventListener('click', function() {
+                groupCollapseState[group.name] = !groupCollapseState[group.name];
+                renderAvailable();
+            });
+            groupEl.appendChild(header);
+
+            var body = document.createElement('div');
+            body.className = 'dim-group-body' + (isCollapsed ? ' hidden' : '');
+
+            // Hierarchy chip (if available and no individual field is in use)
+            if (hierField) {
+                var hChip = createChip(hierField, null);
+                hChip.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    pivotConfig.moveField(hierField.name, null, 'rowFields');
+                    if (!pivotConfig.hierarchyState[hierField.name]) {
+                        pivotConfig.hierarchyState[hierField.name] = { expandedLevel: 0, expandedNodes: {} };
+                    }
+                    renderAllZones();
+                    notifyChange();
+                });
+                body.appendChild(hChip);
+            }
+
+            // Individual field chips (if hierarchy is not in use)
+            groupFields.forEach(function(f) {
+                var chip = createChip(f, null);
+                chip.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var targetZone = 'rowFields';
+                    pivotConfig.moveField(f.name, null, targetZone);
+                    renderAllZones();
+                    notifyChange();
+                });
+                body.appendChild(chip);
+            });
+
+            groupEl.appendChild(body);
+            availableFields.appendChild(groupEl);
+        });
+
+        // Measures group at the end
+        var measAvail = available.filter(function(f) { return f.type === 'measure'; });
+        if (measAvail.length > 0) {
+            var measGroup = document.createElement('div');
+            measGroup.className = 'dim-group';
+
+            var isCollapsed = groupCollapseState['_MEASURES'] === true;
+
+            var header = document.createElement('div');
+            header.className = 'dim-group-header' + (isCollapsed ? ' collapsed' : '');
+            header.innerHTML = '<span class="group-arrow">\u25BC</span><span class="group-icon">' + GROUP_ICONS.chart + '</span><span>Medidas</span>';
+            header.addEventListener('click', function() {
+                groupCollapseState['_MEASURES'] = !groupCollapseState['_MEASURES'];
+                renderAvailable();
+            });
+            measGroup.appendChild(header);
+
+            var body = document.createElement('div');
+            body.className = 'dim-group-body' + (isCollapsed ? ' hidden' : '');
+            measAvail.forEach(function(f) {
+                var chip = createChip(f, null);
+                chip.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    pivotConfig.moveField(f.name, null, 'valueFields');
+                    renderAllZones();
+                    notifyChange();
+                });
+                body.appendChild(chip);
+            });
+            measGroup.appendChild(body);
+            availableFields.appendChild(measGroup);
+        }
     }
 
     function renderZone(zoneName, container, countEl) {
@@ -814,26 +944,14 @@
         if (!configJSON) return;
         pivotConfig = PivotConfig.fromJSON(configJSON);
         if (pivotConfig && pivotConfig.source) {
-            querySelect.value = pivotConfig.source;
             var ds = dsManager.getActive();
             if (ds) {
                 ds.getMetadata(pivotConfig.source).then(function(meta) {
                     metadata = meta;
                     allFields = [];
 
-                    var hierDimRefs = {};
-                    if (meta.hierarchies) {
-                        meta.hierarchies.forEach(function(h) {
-                            h.levels.forEach(function(lev) {
-                                hierDimRefs[lev.dimensionRef] = h.name;
-                            });
-                        });
-                    }
-
                     meta.dimensions.forEach(function(d) {
-                        if (!hierDimRefs[d.name]) {
-                            allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
-                        }
+                        allFields.push({ name: d.name, caption: d.caption, type: 'dimension' });
                     });
 
                     if (meta.hierarchies) {
@@ -874,10 +992,17 @@
     window.Asc.plugin.onExternalMouseUp = function() {};
     window.Asc.plugin.onThemeChanged = function() {};
 
-    // Listen for config loaded from background (persistence restore)
+    // Listen for events from background
     if (window.Asc && window.Asc.plugin) {
         window.Asc.plugin.attachEvent('onConfigLoaded', function(data) {
             loadConfig(data);
+        });
+
+        window.Asc.plugin.attachEvent('onReportsListUpdate', function(data) {
+            updateReportSelector(data.reports);
+            if (data.activeReportId) {
+                querySelect.value = data.activeReportId;
+            }
         });
 
         window.Asc.plugin.attachEvent('onOverlapConfirm', function(data) {

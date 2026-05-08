@@ -41,11 +41,33 @@
         }
 
         /**
+         * @returns {Promise<Array<{name:string, caption:string, count:number}>>}
+         */
+        async listCatalogs() {
+            const sources = await this.listSources();
+            const map = {};
+            sources.forEach(function(s) {
+                var cat = s.catalog || 'General';
+                if (!map[cat]) map[cat] = { name: cat, caption: cat, count: 0 };
+                map[cat].count++;
+            });
+            return Object.values(map);
+        }
+
+        /**
          * @param {string} sourceName
          * @returns {Promise<{
          *   dimensions: Array<{name:string, caption:string}>,
          *   measures: Array<{name:string, caption:string, dataType?:string, unit?:string, decimals?:number}>,
-         *   hierarchies?: Array<{name:string, caption:string, levels: Array<{name:string, caption:string, dimensionRef:string}>}>
+         *   hierarchies?: Array<{name:string, caption:string, levels: Array<{name:string, caption:string, dimensionRef:string}>}>,
+         *   dimensionGroups?: Array<{
+         *     name: string,
+         *     caption: string,
+         *     icon?: string,
+         *     fields: Array<{name:string, caption:string, type:'level'|'attribute'}>,
+         *     hierarchy?: {name:string, caption:string, levels:string[]}
+         *   }>,
+         *   initialFilters?: Array<{dimension:string, caption:string, required:boolean}>
          * }>}
          *
          * measure.unit     — Unit code: 'EUR'|'USD'|'GBP'|'%'|'uds'|'kg'|'h'|...
@@ -53,6 +75,15 @@
          *
          * hierarchies[].levels[].dimensionRef — References a dimension.name in the dimensions array.
          *   Levels are ordered top-down (broadest → most detailed).
+         *
+         * dimensionGroups — Optional. Groups dimensions into conceptual categories for UI display.
+         *   Each group has fields (type:'level' for hierarchy members, 'attribute' for non-hierarchical).
+         *   If a group has a hierarchy, it appears as an expandable chip in the panel.
+         *   If dimensionGroups is absent, the panel falls back to the flat dimension list.
+         *
+         * initialFilters — Optional. Dimensions shown in the import wizard for pre-filtering.
+         *   required:true means user must select at least one value before importing.
+         * @type {Array<{dimension:string, caption:string, required:boolean}>}
          */
         async getMetadata(sourceName) {
             throw new Error('getMetadata() not implemented');

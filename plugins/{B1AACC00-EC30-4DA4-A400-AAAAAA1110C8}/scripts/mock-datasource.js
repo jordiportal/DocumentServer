@@ -1,6 +1,7 @@
 /**
  * MockDataSource — Implements the DataSource contract using static data from mock-data.js.
  * Adds a small artificial delay to simulate network latency.
+ * Supports config.catalogFilter to restrict which catalogs this instance serves.
  */
 
 (function(window) {
@@ -30,6 +31,10 @@
         async listSources(filter) {
             await delay();
             let sources = MockData.SOURCES.slice();
+            if (this.config.catalogFilter) {
+                var cf = this.config.catalogFilter;
+                sources = sources.filter(function(s) { return s.catalog === cf; });
+            }
             if (filter) {
                 const lc = filter.toLowerCase();
                 sources = sources.filter(s =>
@@ -53,6 +58,12 @@
             };
             if (meta.hierarchies) {
                 result.hierarchies = meta.hierarchies.slice();
+            }
+            if (meta.dimensionGroups) {
+                result.dimensionGroups = meta.dimensionGroups.slice();
+            }
+            if (meta.initialFilters) {
+                result.initialFilters = meta.initialFilters.slice();
             }
             return result;
         }

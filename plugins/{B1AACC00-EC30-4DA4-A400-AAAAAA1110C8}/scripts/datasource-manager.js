@@ -96,12 +96,9 @@
                 if (!raw) return;
                 const configs = JSON.parse(raw);
                 configs.forEach(cfg => {
-                    if (cfg.type === 'mock') {
+                    if (cfg.type === 'mock' || cfg.type === 'biw' || cfg.type === 'databricks') {
                         this.register(new MockDataSource(cfg));
                     }
-                    // Future types will be registered here:
-                    // else if (cfg.type === 'biw')        → new BiwDataSource(cfg)
-                    // else if (cfg.type === 'databricks')  → new DatabricksDataSource(cfg)
                 });
                 const activeName = localStorage.getItem(ACTIVE_KEY);
                 if (activeName && this._sources.has(activeName)) {
@@ -110,6 +107,18 @@
             } catch (e) {
                 // ignore corrupt data
             }
+        }
+
+        /** Register default mock proxies if nothing is stored. */
+        registerDefaults() {
+            if (this._sources.size > 0) return;
+            this.register(new MockDataSource({
+                name: 'SAP BW', type: 'biw', catalogFilter: 'Ventas'
+            }));
+            this.register(new MockDataSource({
+                name: 'Databricks', type: 'databricks', catalogFilter: 'Produccion'
+            }));
+            this._persist();
         }
 
         /** Save current state (call after config edits). */

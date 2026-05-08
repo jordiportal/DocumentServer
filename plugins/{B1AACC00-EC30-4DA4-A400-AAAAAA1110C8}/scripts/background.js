@@ -9,7 +9,7 @@
 (function(window, undefined) {
     'use strict';
 
-    var VERSION = '3.0.0';
+    var VERSION = '3.3.0';
     var PLUGIN_NAME = 'DataAnalyzer';
 
     var dsManager        = null;
@@ -52,6 +52,25 @@
         return null;
     }
 
+    function sendReportsList() {
+        if (!filtersPanel) return;
+        var reports = currentReports.map(function(r) {
+            var cfg = r.pivotConfig;
+            var parsed = null;
+            if (cfg) {
+                try { parsed = typeof cfg === 'string' ? JSON.parse(cfg) : cfg; } catch(e) {}
+            }
+            return {
+                id: r.id,
+                source: parsed ? (parsed.source || '') : '',
+                caption: parsed ? (parsed.sourceName || parsed.source || r.id) : r.id,
+                startRow: r.startRow,
+                startCol: r.startCol
+            };
+        });
+        filtersPanel.command('onReportsListUpdate', { reports: reports, activeReportId: currentReportId });
+    }
+
     function parseMeta(metaJSON) {
         if (!metaJSON) return [];
         try {
@@ -86,9 +105,7 @@
         console.log('[' + PLUGIN_NAME + '] v' + VERSION + ' inicializado');
 
         dsManager = new DataSourceManager();
-        if (dsManager.list().length === 0) {
-            dsManager.register(new MockDataSource());
-        }
+        dsManager.registerDefaults();
 
         attachEvent('onToolbarMenuClick');
         attachEvent('onContextMenuClick');
@@ -273,6 +290,7 @@
                     currentPivotConfig = PivotConfig.fromJSON(cfg);
                     if (filtersPanel) {
                         filtersPanel.command('onConfigLoaded', currentPivotConfig.toJSON());
+                        sendReportsList();
                     }
                 }
             }
@@ -392,18 +410,20 @@
                     var activeSlot = findReportAtCell(cellRow0, cellCol0, reports) || reports[0];
                     currentReportId = activeSlot.id;
                     currentPivotConfig = PivotConfig.fromJSON(activeSlot.pivotConfig);
-                    console.log('[' + PLUGIN_NAME + '] Config restored (report: ' + currentReportId + ', total: ' + reports.length + ')');
                     if (filtersPanel && currentPivotConfig) {
                         filtersPanel.command('onConfigLoaded', currentPivotConfig.toJSON());
                     }
+                    sendReportsList();
                 } else {
                     currentReportId = null;
                     currentPivotConfig = null;
+                    sendReportsList();
                 }
             } else {
                 currentReports = [];
                 currentReportId = null;
                 currentPivotConfig = null;
+                sendReportsList();
             }
         });
     }
@@ -592,12 +612,17 @@
             clearArea: clearArea,
             callback: function(result) {
                 if (result && result.reportId) {
-                    // Refresh local reports
                     restoreConfigForCurrentSheet();
+                    setTimeout(sendReportsList, 300);
                 }
-                if (importWindow) importWindow.command('onInsertComplete', result);
+                if (importWindow) {
+                    try { importWindow.close(); } catch(e) {}
+                    importWindow = null;
+                }
                 if (!filtersPanel && currentPivotConfig) {
                     setTimeout(openFiltersPanel, 300);
+                } else {
+                    setTimeout(sendReportsList, 400);
                 }
             }
         };
@@ -619,20 +644,21 @@
             var overlap = findReportAtCell(pos.row, pos.col, currentReports);
 
             if (overlap) {
-                // Ask user via the panel/window
-                if (filtersPanel) {
+                // If the overlap is the active report, just replace it (no confirmation needed)
+                if (overlap.id === currentReportId) {
+                    var clearArea = { startRow: overlap.startRow, startCol: overlap.startCol, rows: overlap.rows, cols: overlap.cols };
+                    performInsert(data, overlap.startRow, overlap.startCol, overlap.id, clearArea);
+                } else if (filtersPanel) {
                     filtersPanel.command('onOverlapConfirm', {
                         reportId: overlap.id,
                         startRow: pos.row,
                         startCol: pos.col
                     });
-                    // Store pending insert data
                     pendingInsertData = data;
                     pendingInsertSource = source;
                     pendingOverlap = overlap;
                     pendingPos = pos;
                 } else {
-                    // No panel open — replace by default
                     var clearArea = { startRow: overlap.startRow, startCol: overlap.startCol, rows: overlap.rows, cols: overlap.cols };
                     performInsert(data, overlap.startRow, overlap.startCol, overlap.id, clearArea);
                 }
@@ -683,6 +709,10 @@
             handleInsertData(data, 'import');
         });
 
+        importWindow.attachEvent('onImportRequest', function(data) {
+            handleImportRequest(data);
+        });
+
         importWindow.attachEvent('onClose', function() { importWindow = null; });
 
         importWindow.show({
@@ -690,12 +720,48 @@
             description: 'Importar Datos',
             isVisual: true,
             buttons: [
-                { text: 'Importar', primary: true },
                 { text: 'Cancelar', primary: false }
             ],
             isModal: true,
             EditorsSupport: ['cell'],
-            size: [640, 580]
+            size: [480, 520]
+        });
+    }
+
+    function handleImportRequest(data) {
+        if (!data || !data.source || !data.pivotConfig) return;
+        var pivotJSON = data.pivotConfig;
+        currentPivotConfig = PivotConfig.fromJSON(pivotJSON);
+
+        var ds = dsManager.getActive();
+        if (!ds) return;
+
+        ds.getMetadata(data.source).then(function(meta) {
+            var params = currentPivotConfig.getQueryParams(meta);
+            return ds.executeQuery(params).then(function(result) {
+                var payload = { pivotConfig: pivotJSON };
+
+                if (currentPivotConfig.isCrossTab()) {
+                    payload.crossTab = currentPivotConfig.buildCrossTab(meta, result.data);
+                } else if (currentPivotConfig.hasHierarchies(meta)) {
+                    var hierData = currentPivotConfig.buildHierarchicalData(meta, result.data);
+                    payload.rows = hierData.rows;
+                    payload.columns = hierData.columns;
+                    payload.columnFormats = currentPivotConfig.getColumnFormats(meta, true);
+                    payload.drillInfo = hierData.drillInfo;
+                } else {
+                    var columns = currentPivotConfig.getColumnOrder(meta);
+                    var totalData = currentPivotConfig.addTotalsToFlatData(meta, result.data, columns);
+                    payload.rows = totalData.rows;
+                    payload.columns = columns;
+                    payload.columnFormats = currentPivotConfig.getColumnFormats(meta);
+                    payload.drillInfo = totalData.drillInfo;
+                }
+
+                handleInsertData(payload, 'import');
+            });
+        }).catch(function(e) {
+            console.error('[' + PLUGIN_NAME + '] import error:', e);
         });
     }
 
@@ -732,6 +798,21 @@
             currentPivotConfig = PivotConfig.fromJSON(configJSON);
         });
 
+        filtersPanel.attachEvent('onReportSelect', function(reportId) {
+            if (!reportId || reportId === currentReportId) return;
+            for (var i = 0; i < currentReports.length; i++) {
+                if (currentReports[i].id === reportId) {
+                    currentReportId = reportId;
+                    var cfg = currentReports[i].pivotConfig;
+                    if (cfg) {
+                        currentPivotConfig = PivotConfig.fromJSON(cfg);
+                        filtersPanel.command('onConfigLoaded', currentPivotConfig.toJSON());
+                    }
+                    break;
+                }
+            }
+        });
+
         filtersPanel.attachEvent('onOverlapResponse', function(response) {
             handleOverlapResponse(response);
         });
@@ -755,13 +836,14 @@
             size: [350, 550]
         });
 
-        if (currentPivotConfig) {
-            setTimeout(function() {
-                if (filtersPanel) {
+        setTimeout(function() {
+            if (filtersPanel) {
+                sendReportsList();
+                if (currentPivotConfig) {
                     filtersPanel.command('onConfigLoaded', currentPivotConfig.toJSON());
                 }
-            }, 600);
-        }
+            }
+        }, 600);
     }
 
     // =====================================================================
