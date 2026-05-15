@@ -96,7 +96,9 @@
                 if (!raw) return;
                 const configs = JSON.parse(raw);
                 configs.forEach(cfg => {
-                    if (cfg.type === 'mock' || cfg.type === 'biw' || cfg.type === 'databricks') {
+                    if (cfg.type === 'biw' && cfg.baseUrl && typeof BiwDataSource !== 'undefined') {
+                        this.register(new BiwDataSource(cfg));
+                    } else if (cfg.type === 'mock' || cfg.type === 'biw' || cfg.type === 'databricks') {
                         this.register(new MockDataSource(cfg));
                     }
                 });
@@ -109,15 +111,32 @@
             }
         }
 
-        /** Register default mock proxies if nothing is stored. */
+        /** Register default proxies if nothing is stored or upgrade mock to real. */
         registerDefaults() {
-            if (this._sources.size > 0) return;
-            this.register(new MockDataSource({
-                name: 'SAP BW', type: 'biw', catalogFilter: 'Ventas'
-            }));
-            this.register(new MockDataSource({
-                name: 'Databricks', type: 'databricks', catalogFilter: 'Produccion'
-            }));
+            // Upgrade: if SAP BW exists but has no baseUrl, replace with real
+            var existing = this._sources.get('SAP BW');
+            if (existing && !existing.config.baseUrl && typeof BiwDataSource !== 'undefined') {
+                this._sources.delete('SAP BW');
+            }
+
+            if (!this._sources.has('SAP BW')) {
+                if (typeof BiwDataSource !== 'undefined') {
+                    this.register(new BiwDataSource({
+                        name: 'SAP BW', type: 'biw',
+                        baseUrl: 'http://localhost:3001/api',
+                        apiKey: '3d9004e33bd73124fcbe2b79a65fd99408225d101b7134011846da9366183e2b'
+                    }));
+                } else {
+                    this.register(new MockDataSource({
+                        name: 'SAP BW', type: 'biw', catalogFilter: 'Ventas'
+                    }));
+                }
+            }
+            if (!this._sources.has('Databricks')) {
+                this.register(new MockDataSource({
+                    name: 'Databricks', type: 'databricks', catalogFilter: 'Produccion'
+                }));
+            }
             this._persist();
         }
 

@@ -9,7 +9,7 @@
 (function(window, undefined) {
     'use strict';
 
-    var VERSION = '3.3.0';
+    var VERSION = '3.4.2';
     var PLUGIN_NAME = 'DataAnalyzer';
 
     var dsManager        = null;
@@ -899,7 +899,7 @@
         if (!windowId) return;
 
         if (importWindow && windowId === importWindow.id) {
-            if (id === 1) { importWindow.close(); importWindow = null; }
+            importWindow.close(); importWindow = null;
             return;
         }
         if (settingsWindow && windowId === settingsWindow.id) {

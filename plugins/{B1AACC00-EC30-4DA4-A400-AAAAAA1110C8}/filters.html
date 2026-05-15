@@ -6,12 +6,13 @@
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <script type="text/javascript" src="../v1/plugins-ui.js"></script>
     <link  rel="stylesheet" href="../v1/plugins.css">
-    <script type="text/javascript" src="scripts/mock-data.js?v=15"></script>
-    <script type="text/javascript" src="scripts/datasource.js?v=15"></script>
-    <script type="text/javascript" src="scripts/mock-datasource.js?v=15"></script>
-    <script type="text/javascript" src="scripts/datasource-manager.js?v=15"></script>
-    <script type="text/javascript" src="scripts/pivot-config.js?v=15"></script>
-    <script type="text/javascript" src="scripts/unit-formatter.js?v=15"></script>
+    <script type="text/javascript" src="scripts/mock-data.js?v=16"></script>
+    <script type="text/javascript" src="scripts/datasource.js?v=16"></script>
+    <script type="text/javascript" src="scripts/mock-datasource.js?v=16"></script>
+    <script type="text/javascript" src="scripts/biw-datasource.js?v=19"></script>
+    <script type="text/javascript" src="scripts/datasource-manager.js?v=16"></script>
+    <script type="text/javascript" src="scripts/pivot-config.js?v=19"></script>
+    <script type="text/javascript" src="scripts/unit-formatter.js?v=16"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -47,7 +48,12 @@
             font-weight: 400; background: #e0e0e0;
             padding: 0 5px; border-radius: 8px; font-size: 9px;
         }
-        .zone-body { padding: 4px 6px; min-height: 28px; }
+        .zone-clear {
+            font-size: 10px; color: #999; cursor: pointer;
+            margin-left: auto; padding: 0 4px; border-radius: 3px;
+        }
+        .zone-clear:hover { color: #d32f2f; background: rgba(211,47,47,0.08); }
+        .zone-body { padding: 4px 6px; min-height: 28px; max-height: 200px; overflow-y: auto; }
         .zone-body.collapsed { display: none; }
         .zone-body.empty-msg::after {
             content: attr(data-empty);
@@ -94,6 +100,7 @@
         /* Available fields */
         .available-fields {
             padding: 4px 6px; display: flex; flex-wrap: wrap; gap: 2px;
+            max-height: 260px; overflow-y: auto;
         }
         .available-fields .chip { opacity: 0.7; border-style: dashed; }
         .available-fields .chip:hover { opacity: 1; }
@@ -261,6 +268,7 @@
         <div class="zone-header" data-zone="valueFields">
             <span>Valores</span>
             <span class="count" id="valueCount">0</span>
+            <span class="zone-clear" id="clearValues" title="Quitar todos">✕</span>
         </div>
         <div class="zone-body" id="valueFieldsZone"
              data-empty="Arrastra medidas aquí"></div>
@@ -875,17 +883,37 @@
             var params = pivotConfig.getQueryParams(metadata);
             var result = await ds.executeQuery(params);
 
+            // Build a units lookup from result.columns (proxy returns units in query data)
+            var unitsFromQuery = {};
+            if (result.columns) {
+                for (var ci = 0; ci < result.columns.length; ci++) {
+                    var rc = result.columns[ci];
+                    if (rc.type === 'measure' && rc.units && rc.units !== 'None') {
+                        unitsFromQuery[rc.name] = rc.units;
+                    }
+                }
+            }
+            // Update metadata.measures with discovered units (use for loop for max compatibility)
+            if (metadata && metadata.measures && Object.keys(unitsFromQuery).length > 0) {
+                for (var mi = 0; mi < metadata.measures.length; mi++) {
+                    var mu = metadata.measures[mi];
+                    if (unitsFromQuery[mu.name]) {
+                        mu.unit = unitsFromQuery[mu.name];
+                    }
+                }
+            }
+
             var payload;
 
             if (pivotConfig.isCrossTab()) {
-                var crossTab = pivotConfig.buildCrossTab(metadata, result.data);
+                var crossTab = pivotConfig.buildCrossTab(metadata, result.data, unitsFromQuery);
                 payload = {
                     crossTab: crossTab,
                     pivotConfig: pivotConfig.toJSON()
                 };
             } else if (pivotConfig.hasHierarchies(metadata)) {
                 var hierData = pivotConfig.buildHierarchicalData(metadata, result.data);
-                var columnFormats = pivotConfig.getColumnFormats(metadata, true);
+                var columnFormats = pivotConfig.getColumnFormats(metadata, true, unitsFromQuery);
                 payload = {
                     rows: hierData.rows,
                     columns: hierData.columns,
@@ -895,7 +923,7 @@
                 };
             } else {
                 var columns = pivotConfig.getColumnOrder(metadata);
-                var columnFormats = pivotConfig.getColumnFormats(metadata);
+                var columnFormats = pivotConfig.getColumnFormats(metadata, false, unitsFromQuery);
                 var totalData = pivotConfig.addTotalsToFlatData(metadata, result.data, columns);
                 payload = {
                     rows: totalData.rows,
@@ -974,6 +1002,17 @@
     // ---- Event bindings ----
     querySelect.addEventListener('change', onQueryChange);
     btnExecute.addEventListener('click', executeQuery);
+
+    // Clear all values button
+    document.getElementById('clearValues').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (!pivotConfig || pivotConfig.valueFields.length === 0) return;
+        pivotConfig.valueFields.slice().forEach(function(name) {
+            pivotConfig.moveField(name, 'valueFields', null);
+        });
+        renderAllZones();
+        notifyChange();
+    });
 
     // Zone header click to collapse/expand
     document.querySelectorAll('.zone-header').forEach(function(header) {

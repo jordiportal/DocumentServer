@@ -145,7 +145,7 @@
             }
         });
 
-        var allDims = resolvedRowDims.concat(this.columnFields, this.filterFields);
+        var allDims = resolvedRowDims.concat(this.columnFields);
         var filters = [];
         for (var dim in this.filters) {
             if (this.filters.hasOwnProperty(dim) && this.filters[dim].length > 0) {
@@ -208,12 +208,11 @@
      *   null for dimension columns, { unit, decimals, symbol } for measure columns.
      * `symbol` is the resolved display character (pre-resolved so callCommand doesn't need window access).
      */
-    PivotConfig.prototype.getColumnFormats = function(metadata, isHierarchyMode) {
+    PivotConfig.prototype.getColumnFormats = function(metadata, isHierarchyMode, unitsOverride) {
         var self = this;
         var formats = [];
 
         if (isHierarchyMode) {
-            // In hierarchy mode, buildHierarchicalData outputs a single tree column
             formats.push(null);
         } else {
             this.rowFields.forEach(function(name) {
@@ -230,10 +229,25 @@
         }
 
         this.valueFields.forEach(function(name) {
-            var meas = metadata.measures.find(function(m) { return m.name === name; });
-            if (meas && meas.unit) {
-                var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(meas.unit) : meas.unit;
-                formats.push({ unit: meas.unit, decimals: meas.decimals != null ? meas.decimals : 2, symbol: sym });
+            var unit = null;
+            var decimals = 2;
+            // Check unitsOverride first (from query response)
+            if (unitsOverride && unitsOverride[name]) {
+                unit = unitsOverride[name];
+            }
+            // Fallback to metadata
+            if (!unit && metadata && metadata.measures) {
+                for (var i = 0; i < metadata.measures.length; i++) {
+                    if (metadata.measures[i].name === name) {
+                        unit = metadata.measures[i].unit || null;
+                        decimals = metadata.measures[i].decimals != null ? metadata.measures[i].decimals : 2;
+                        break;
+                    }
+                }
+            }
+            if (unit && unit !== 'None') {
+                var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(unit) : unit;
+                formats.push({ unit: unit, decimals: decimals, symbol: sym });
             } else {
                 formats.push(null);
             }
@@ -729,7 +743,7 @@
      * @param {Object}   metadata — { dimensions[], measures[] }
      * @param {Object[]} flatData — raw rows from DataSource (flat objects keyed by caption)
      */
-    PivotConfig.prototype.buildCrossTab = function(metadata, flatData) {
+    PivotConfig.prototype.buildCrossTab = function(metadata, flatData, unitsOverride) {
         var self = this;
         if (!this.isCrossTab()) return null;
 
@@ -899,27 +913,45 @@
 
         // --- Build columnFormats (aligned with final headerRow0) ---
         var columnFormats = [];
-        // Row-dim columns have no numeric format
         rowCaptions.forEach(function() { columnFormats.push(null); });
-        // Each colCombo × each valueField
+
+        function resolveUnit(name) {
+            if (unitsOverride && unitsOverride[name]) return unitsOverride[name];
+            if (metadata && metadata.measures) {
+                for (var i = 0; i < metadata.measures.length; i++) {
+                    if (metadata.measures[i].name === name && metadata.measures[i].unit && metadata.measures[i].unit !== 'None') {
+                        return metadata.measures[i].unit;
+                    }
+                }
+            }
+            return null;
+        }
+        function resolveDecimals(name) {
+            if (metadata && metadata.measures) {
+                for (var i = 0; i < metadata.measures.length; i++) {
+                    if (metadata.measures[i].name === name) return metadata.measures[i].decimals != null ? metadata.measures[i].decimals : 2;
+                }
+            }
+            return 2;
+        }
+
         colCombos.forEach(function() {
             self.valueFields.forEach(function(name) {
-                var meas = metadata.measures.find(function(m) { return m.name === name; });
-                if (meas && meas.unit) {
-                    var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(meas.unit) : meas.unit;
-                    columnFormats.push({ unit: meas.unit, decimals: meas.decimals != null ? meas.decimals : 2, symbol: sym });
+                var unit = resolveUnit(name);
+                if (unit) {
+                    var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(unit) : unit;
+                    columnFormats.push({ unit: unit, decimals: resolveDecimals(name), symbol: sym });
                 } else {
                     columnFormats.push(null);
                 }
             });
         });
-        // Total column formats
         if (addColTotal) {
             self.valueFields.forEach(function(name) {
-                var meas = metadata.measures.find(function(m) { return m.name === name; });
-                if (meas && meas.unit) {
-                    var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(meas.unit) : meas.unit;
-                    columnFormats.push({ unit: meas.unit, decimals: meas.decimals != null ? meas.decimals : 2, symbol: sym });
+                var unit = resolveUnit(name);
+                if (unit) {
+                    var sym = window.UnitFormatter ? window.UnitFormatter.displayLabel(unit) : unit;
+                    columnFormats.push({ unit: unit, decimals: resolveDecimals(name), symbol: sym });
                 } else {
                     columnFormats.push(null);
                 }
